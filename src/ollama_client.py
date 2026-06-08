@@ -85,11 +85,15 @@ class OllamaTranslator:
         }
 
         try:
-            response = requests.post(url, json=payload, headers=self._get_headers(), timeout=15)
+            # Increased timeout to 60 seconds to allow time for Ollama to load the model into VRAM/RAM on cold starts
+            response = requests.post(url, json=payload, headers=self._get_headers(), timeout=60)
             response.raise_for_status()
             result = response.json()
             translation = result.get("response", "").strip()
             return translation
+        except requests.exceptions.ReadTimeout:
+            raise Exception(f"Timeout error: Ollama did not respond in 60 seconds.\n"
+                            f"The model '{self.model}' might be too large or loading slowly on the Mac mini server. Try again in a moment!")
         except requests.exceptions.ConnectionError:
             raise Exception(f"Connection error: Could not reach Ollama at {self.base_url}.\n"
                             f"Please verification that Ollama is running and accessible (check Tailscale/Wireguard VPN if used).")
@@ -108,7 +112,7 @@ class OllamaTranslator:
     def check_connection(self):
         """Verify if Ollama is running and accessible."""
         try:
-            response = requests.get(f"{self.base_url}/api/tags", headers=self._get_headers(), timeout=3)
+            response = requests.get(f"{self.base_url}/api/tags", headers=self._get_headers(), timeout=10)
             if response.status_code == 200:
                 models = [model["name"] for model in response.json().get("models", [])]
                 return True, models

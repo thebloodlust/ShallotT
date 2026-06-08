@@ -201,11 +201,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 4000);
   }
 
+  function detectIsEnglishHeuristic(txt) {
+    if (!txt) return false;
+    const words = txt.toLowerCase().match(/\b[a-z]{2,10}\b/g);
+    if (!words) return false;
+    const englishStopwords = new Set(["the", "and", "of", "to", "is", "that", "it", "for", "on", "was", "with", "as", "at", "by", "an", "be", "this", "are", "you", "from", "have", "not", "or", "but"]);
+    let englishCount = 0;
+    for (const w of words) {
+      if (englishStopwords.has(w)) {
+        englishCount++;
+      }
+    }
+    return (englishCount / words.length) > 0.12 || (words.length >= 3 && englishCount >= 1);
+  }
+
+  function detectIsFrenchHeuristic(txt) {
+    if (!txt) return false;
+    const words = txt.toLowerCase().match(/\b[a-z]{2,10}\b/g);
+    if (!words) return false;
+    const frenchStopwords = new Set(["le", "la", "les", "et", "est", "dans", "pour", "une", "des", "qui", "que", "un", "du", "en", "pour", "par", "sur", "avec", "mais", "ou", "ce", "cette"]);
+    let frenchCount = 0;
+    for (const w of words) {
+      if (frenchStopwords.has(w)) {
+        frenchCount++;
+      }
+    }
+    return (frenchCount / words.length) > 0.12 || (words.length >= 3 && frenchCount >= 1);
+  }
+
   async function translate() {
     const text = srcText.value.trim();
     if (!text) {
       targetText.value = "";
       return;
+    }
+
+    // Smart automatic target language check
+    let tLang = targetLang.value;
+    const isEnglish = detectIsEnglishHeuristic(text);
+    const isFrench = detectIsFrenchHeuristic(text);
+    
+    if (isEnglish && tLang === "English") {
+      targetLang.value = "French";
+    } else if (isFrench && tLang === "French") {
+      targetLang.value = "English";
     }
 
     globalStatus.textContent = "Traduction en cours...";

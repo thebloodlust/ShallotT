@@ -76,6 +76,35 @@ if (chrome.webRequest) {
 const DEFAULT_URL = "http://localhost:11434";
 const DEFAULT_MODEL = "gemma:latest";
 
+// Heuristic language detection functions for background actions
+function detectIsEnglishHeuristic(txt) {
+  if (!txt) return false;
+  const words = txt.toLowerCase().match(/\b[a-z]{2,10}\b/g);
+  if (!words) return false;
+  const englishStopwords = new Set(["the", "and", "of", "to", "is", "that", "it", "for", "on", "was", "with", "as", "at", "by", "an", "be", "this", "are", "you", "from", "have", "not", "or", "but"]);
+  let englishCount = 0;
+  for (const w of words) {
+    if (englishStopwords.has(w)) {
+      englishCount++;
+    }
+  }
+  return (englishCount / words.length) > 0.12 || (words.length >= 3 && englishCount >= 1);
+}
+
+function detectIsFrenchHeuristic(txt) {
+  if (!txt) return false;
+  const words = txt.toLowerCase().match(/\b[a-z]{2,10}\b/g);
+  if (!words) return false;
+  const frenchStopwords = new Set(["le", "la", "les", "et", "est", "dans", "pour", "une", "des", "qui", "que", "un", "du", "en", "pour", "par", "sur", "avec", "mais", "ou", "ce", "cette"]);
+  let frenchCount = 0;
+  for (const w of words) {
+    if (frenchStopwords.has(w)) {
+      frenchCount++;
+    }
+  }
+  return (frenchCount / words.length) > 0.12 || (words.length >= 3 && frenchCount >= 1);
+}
+
 // Set up Context Menu item on installation
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -84,10 +113,34 @@ chrome.runtime.onInstalled.addListener(() => {
     contexts: ["selection"]
   });
 
+  const subLangMenu = [
+    { id: "shallott-lang-French", title: "Traduire en Français 🇫🇷" },
+    { id: "shallott-lang-English", title: "Traduire en Anglais 🇬🇧" },
+    { id: "shallott-lang-Spanish", title: "Traduire en Espagnol 🇪🇸" },
+    { id: "shallott-lang-German", title: "Traduire en Allemand 🇩🇪" },
+    { id: "shallott-lang-Italian", title: "Traduire en Italien 🇮🇹" },
+    { id: "shallott-lang-Portuguese", title: "Traduire en Portugais 🇵🇹" },
+    { id: "shallott-lang-Chinese", title: "Traduire en Chinois 🇨🇳" },
+    { id: "shallott-lang-Japanese", title: "Traduire en Japonais 🇯🇵" },
+    { id: "shallott-lang-Russian", title: "Traduire en Russe 🇷🇺" }
+  ];
+
+  subLangMenu.forEach(item => {
+    chrome.contextMenus.create({
+      id: item.id,
+      parentId: "shallott-translate-selection",
+      title: item.title,
+      contexts: ["selection"]
+    });
+  });
+
   // Setup default values in storage
   chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'targetLang'], (result) => {
     if (!result.ollamaUrl) chrome.storage.local.set({ ollamaUrl: DEFAULT_URL });
     if (!result.ollamaModel) chrome.storage.local.set({ ollamaModel: DEFAULT_MODEL });
+    if (!result.targetLang) chrome.storage.local.set({ targetLang: "French" });
+  });
+});
     if (!result.targetLang) chrome.storage.local.set({ targetLang: "French" });
   });
 });
@@ -227,13 +280,21 @@ chrome.commands.onCommand.addListener((command) => {
 
 // Context Menu triggering
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === "shallott-translate-selection" && info.selectionText) {
+  const isParentClick = info.menuItemId === "shallott-translate-selection";
+  const isSubmenuClick = info.menuItemId && info.menuItemId.startsWith("shallott-lang-");
+  
+  if ((isParentClick || isSubmenuClick) && info.selectionText) {
     const selectedText = info.selectionText;
     
-    // Store selected text into local extension memory
-    chrome.storage.local.set({ lastQueryText: selectedText }, () => {
+    // Check if a specific target language was selected via submenu
+    let targetLangOverride = null;
+    if (isSubmenuClick) {
+      targetLangOverride = info.menuItemId.replace("shallott-lang-", "");
+    }
+
+    const runTranslation = () => {
       // Direct notification or automatic popup opening if supported,
-      // or inject an clean absolute overlay bubble direct in page!
+      // or inject a clean absolute overlay bubble direct in page!
       if (chrome.scripting) {
         chrome.scripting.executeScript({
           target: { tabId: tab.id },
@@ -249,6 +310,29 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
           code: `(${displayInlineTranslationBubble.toString()})(${JSON.stringify(selectedText)})`
         });
       }
+    };
+
+    // Prepare config to update in local storage
+    const configToUpdate = { lastQueryText: selectedText };
+    if (targetLangOverride) {
+      configToUpdate.targetLang = targetLangOverride;
+    }
+
+    // Read stored language to perform smart target language auto-swap if source text matches target language
+    chrome.storage.local.get(['targetLang'], (stored) => {
+      const activeTarget = targetLangOverride || stored.targetLang || "French";
+      const isEnglish = detectIsEnglishHeuristic(selectedText);
+      const isFrench = detectIsFrenchHeuristic(selectedText);
+      
+      if (isEnglish && activeTarget === "English") {
+        configToUpdate.targetLang = "French";
+      } else if (isFrench && activeTarget === "French") {
+        configToUpdate.targetLang = "English";
+      }
+
+      chrome.storage.local.set(configToUpdate, () => {
+        runTranslation();
+      });
     });
   }
 });
