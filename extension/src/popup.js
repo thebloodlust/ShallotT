@@ -48,24 +48,43 @@ document.addEventListener('DOMContentLoaded', () => {
       if (response && response.success && response.models && response.models.length > 0) {
         ollamaModel.innerHTML = "";
         let found = false;
+        
+        let modelToSelect = activeModel;
+        if (response.models.includes(activeModel)) {
+          found = true;
+        }
+
+        // Intelligent auto-detection of the best model (e.g. gemma4, gemma2, etc.)
+        if (!found) {
+          const gemmaModel = response.models.find(m => m.toLowerCase().includes("gemma"));
+          if (gemmaModel) {
+            modelToSelect = gemmaModel;
+            found = true;
+          } else {
+            const qwenModel = response.models.find(m => m.toLowerCase().includes("qwen"));
+            if (qwenModel) {
+              modelToSelect = qwenModel;
+              found = true;
+            } else {
+              modelToSelect = response.models[0];
+              found = true;
+            }
+          }
+        }
+
         response.models.forEach(modelName => {
           const opt = document.createElement("option");
           opt.value = modelName;
           opt.textContent = modelName;
-          if (modelName === activeModel) {
+          if (modelName === modelToSelect) {
             opt.selected = true;
-            found = true;
           }
           ollamaModel.appendChild(opt);
         });
 
-        // If the saved model was not in the list, add it back to be safe
-        if (!found) {
-          const opt = document.createElement("option");
-          opt.value = activeModel;
-          opt.textContent = activeModel;
-          opt.selected = true;
-          ollamaModel.appendChild(opt);
+        // Automatically save the auto-detected model so translated texts work out of the box
+        if (modelToSelect !== activeModel) {
+          chrome.storage.local.set({ ollamaModel: modelToSelect });
         }
       }
     });

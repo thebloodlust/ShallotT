@@ -20,11 +20,34 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
+function normalizeUrl(url) {
+  let cleaned = (url || "http://localhost:11434").trim().replace(/\/$/, "");
+  if (!cleaned) return "http://localhost:11434";
+  
+  if (!/^https?:\/\//i.test(cleaned)) {
+    cleaned = "http://" + cleaned;
+  }
+  
+  try {
+    const parse = new URL(cleaned);
+    if (!parse.port && parse.hostname !== "localhost" && !parse.hostname.includes(".")) {
+      cleaned = cleaned + ":11434";
+    } else if (!parse.port && /^[0-9.]+$/.test(parse.hostname)) {
+      cleaned = cleaned + ":11434";
+    }
+  } catch (e) {
+    if (!cleaned.includes(":", 6)) {
+      cleaned = cleaned + ":11434";
+    }
+  }
+  return cleaned;
+}
+
 // Listener to execute secure extension-level fetch requests to bypass webpage CORS/Mixed-Content limitations
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "secure-translate") {
     chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang'], async (stored) => {
-      const url = (stored.ollamaUrl || "http://localhost:11434").replace(/\/$/, "");
+      const url = normalizeUrl(stored.ollamaUrl);
       const model = stored.ollamaModel || "gemma:latest";
       const key = stored.ollamaApiKey || "";
       const targetL = stored.targetLang || "French";
@@ -57,7 +80,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true; // Keep sendResponse channel active
   } else if (request.action === "get-models") {
-    const url = request.url.replace(/\/$/, "");
+    const url = normalizeUrl(request.url);
     const key = request.key || "";
     const headers = {};
     if (key) headers["Authorization"] = `Bearer ${key}`;
