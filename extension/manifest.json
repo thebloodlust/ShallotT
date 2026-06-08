@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ShallotT - DeepL AI Local",
   "version": "1.0.0",
-  "description": "Equivalent DeepL local et ultra-rapide utilisant Ollama et Gemma 2 pour traduire instantanément.",
+  "description": "Equivalent DeepL local et ultra-rapide utilisant Ollama et Gemma pour traduire instantanément.",
   "permissions": [
     "activeTab",
     "storage",

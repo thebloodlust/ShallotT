@@ -2,7 +2,7 @@
 
 // Default host configurations
 const DEFAULT_URL = "http://localhost:11434";
-const DEFAULT_MODEL = "gemma2:9b";
+const DEFAULT_MODEL = "gemma:latest";
 
 // Set up Context Menu item on installation
 chrome.runtime.onInstalled.addListener(() => {

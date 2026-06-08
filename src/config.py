@@ -4,7 +4,7 @@ import platform
 
 DEFAULT_CONFIG = {
     "ollama_url": "http://localhost:11434",
-    "ollama_model": "gemma2:9b", # Gemma 2 9B ou gemma:latest (gemma 8B)
+    "ollama_model": "gemma:latest", # Gemma 8B ou gemma2:9b (ou gemma2:9b-instruct-q4_K_M)
     "ollama_api_key": "", # Clé d'API optionnelle pour reverse proxies sécurisés (ex. Bearer token)
     "source_lang": "Auto Detection",
     "target_lang": "French",
