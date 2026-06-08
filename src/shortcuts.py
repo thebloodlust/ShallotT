@@ -2,16 +2,14 @@ import time
 from pynput import keyboard
 
 class ShortcutManager:
-    def __init__(self, on_translate_trigger, on_ocr_trigger):
+    def __init__(self, on_translate_trigger, on_ocr_trigger, config_provider=None):
         self.on_translate_trigger = on_translate_trigger
         self.on_ocr_trigger = on_ocr_trigger
+        self.config_provider = config_provider
         
-        self.ctrl_pressed = False
         self.last_c_press_time = 0
-        self.c_press_count = 0
-        
         self.listener = None
-        self.active_keys = set()
+        self.pressed_keys = set()
 
     def start(self):
         self.listener = keyboard.Listener(
@@ -24,35 +22,63 @@ class ShortcutManager:
         if self.listener:
             self.listener.stop()
 
-    def on_press(self, key):
-        # We track modifier keys
+    def get_key_name(self, key):
         if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
-            self.ctrl_pressed = True
+            return "ctrl"
+        if key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt_gr):
+            return "alt"
+        if key in (keyboard.Key.shift, keyboard.Key.shift_l, keyboard.Key.shift_r):
+            return "shift"
+        if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r):
+            return "cmd"
+        
+        # Check F keys
+        for i in range(1, 13):
+            if key == getattr(keyboard.Key, f'f{i}', None):
+                return f"f{i}"
+                
+        if hasattr(key, 'char') and key.char:
+            return key.char.lower()
             
         try:
-            # Handle Ctrl + C + C (Double C press while Ctrl is held or rapid Ctrl+C + Ctrl+C)
-            if self.ctrl_pressed:
-                # key.char represents the character
-                if hasattr(key, 'char') and (key.char == 'c' or key.char == 'C' or ord(key.char) == 3): # 3 is copy character code in some layouts
-                    current_time = time.time()
-                    # It's a second 'C' press within 0.5 seconds while holding ctrl
-                    if current_time - self.last_c_press_time < 0.5:
-                        self.on_translate_trigger()
-                        # Reset
-                        self.last_c_press_time = 0
-                    else:
-                        self.last_c_press_time = current_time
-
-            # Handle Ctrl + F8 (Global shortcut for OCR)
-            if self.ctrl_pressed and key == keyboard.Key.f8:
-                self.on_ocr_trigger()
-                
+            name = key.name
+            if name:
+                return name.lower()
         except AttributeError:
-            # For special keys like F8 when ctrl is pressed, sometimes attributes differ
-            if self.ctrl_pressed and key == keyboard.Key.f8:
-                self.on_ocr_trigger()
             pass
+            
+        return None
+
+    def on_press(self, key):
+        name = self.get_key_name(key)
+        if name:
+            self.pressed_keys.add(name)
+            
+        # Load latest config dynamically to support hot-swapping shortcuts!
+        config = self.config_provider() if self.config_provider else {}
+        trans_shortcut = config.get("shortcut_translate", "ctrl+c+c").lower().strip()
+        ocr_shortcut = config.get("shortcut_ocr", "ctrl+f8").lower().strip()
+        
+        # 1. Translate action trigger checks
+        if trans_shortcut == "ctrl+c+c":
+            if "ctrl" in self.pressed_keys and name == "c":
+                current_time = time.time()
+                if current_time - self.last_c_press_time < 0.5:
+                    self.on_translate_trigger()
+                    self.last_c_press_time = 0
+                else:
+                    self.last_c_press_time = current_time
+        else:
+            target_keys = set(trans_shortcut.split("+"))
+            if target_keys and self.pressed_keys == target_keys:
+                self.on_translate_trigger()
+
+        # 2. OCR action trigger checks
+        target_ocr_keys = set(ocr_shortcut.split("+"))
+        if target_ocr_keys and self.pressed_keys == target_ocr_keys:
+            self.on_ocr_trigger()
 
     def on_release(self, key):
-        if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
-            self.ctrl_pressed = False
+        name = self.get_key_name(key)
+        if name and name in self.pressed_keys:
+            self.pressed_keys.discard(name)

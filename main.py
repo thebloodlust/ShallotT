@@ -30,7 +30,8 @@ def main():
         # Setup global shortcuts listener (works out of the box in X11 and most hybrid systems)
         shortcuts = ShortcutManager(
             on_translate_trigger=lambda: window.trigger_translate_shortcut.emit(),
-            on_ocr_trigger=lambda: window.trigger_ocr_shortcut.emit()
+            on_ocr_trigger=lambda: window.trigger_ocr_shortcut.emit(),
+            config_provider=lambda: window.config
         )
         shortcuts.start()
         

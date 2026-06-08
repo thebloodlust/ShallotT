@@ -326,12 +326,28 @@ class ShallotTApp(QMainWindow):
         
         settings_layout.addWidget(ollama_group)
         
-        # Shortcut Info
-        shortcuts_group = QGroupBox("Keyboard Shortcuts (Global)")
+        # Shortcuts Info & Customization
+        shortcuts_group = QGroupBox("Keyboard Shortcuts (Raccourcis globaux)")
         sg_layout = QVBoxLayout(shortcuts_group)
-        sg_layout.addWidget(QLabel("<b>Double Ctrl+C</b> : Translate selected text globally (copies to clipboard and pops window up)"))
-        sg_layout.addWidget(QLabel("<b>Ctrl+F8</b> : Select screen area for regional OCR & instant translation"))
-        sg_layout.addWidget(QLabel("<i>Note: Keep this application running in background tray. On Linux, if Wayland blocks shortcuts, register them in your desktop settings.</i>"))
+        
+        # Translate shortcut input
+        trans_sh_layout = QHBoxLayout()
+        trans_sh_layout.addWidget(QLabel("Translate Selection Shortcut:"))
+        self.shortcut_translate_input = QLineEdit(self.config.get("shortcut_translate", "ctrl+c+c"))
+        self.shortcut_translate_input.setPlaceholderText("e.g. ctrl+c+c or ctrl+alt+t")
+        trans_sh_layout.addWidget(self.shortcut_translate_input)
+        sg_layout.addLayout(trans_sh_layout)
+        
+        # OCR shortcut input
+        ocr_sh_layout = QHBoxLayout()
+        ocr_sh_layout.addWidget(QLabel("OCR Screenshot Shortcut:"))
+        self.shortcut_ocr_input = QLineEdit(self.config.get("shortcut_ocr", "ctrl+f8"))
+        self.shortcut_ocr_input.setPlaceholderText("e.g. ctrl+f8 or ctrl+alt+o")
+        ocr_sh_layout.addWidget(self.shortcut_ocr_input)
+        sg_layout.addLayout(ocr_sh_layout)
+        
+        sg_layout.addWidget(QLabel("<i>Tips: Use <b>ctrl+c+c</b> for double-C press gesture. Other shortcuts can be formatted like <b>ctrl+alt+t</b>.</i>"))
+        sg_layout.addWidget(QLabel("<i>Note: On Linux, if Wayland blocks background shortcuts, register them in your desktop hotkey settings using application flags <b>--translate</b> or <b>--ocr</b>.</i>"))
         settings_layout.addWidget(shortcuts_group)
         
         settings_layout.addStretch()
@@ -645,6 +661,10 @@ class ShallotTApp(QMainWindow):
         self.config["ollama_api_key"] = key
         self.config["source_lang"] = self.src_lang_box.currentText()
         self.config["target_lang"] = self.target_lang_box.currentText()
+        
+        # Save custom shortcuts
+        self.config["shortcut_translate"] = self.shortcut_translate_input.text().strip().lower()
+        self.config["shortcut_ocr"] = self.shortcut_ocr_input.text().strip().lower()
         
         save_config(self.config)
         
