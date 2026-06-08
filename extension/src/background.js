@@ -279,8 +279,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 model: model,
                 prompt: fullPrompt,
                 stream: false,
-                // Limit num_predict for ultra speed, as translations don't need raw high sequence limits
-                options: { temperature: 0.1, top_p: 0.9, num_predict: 256, num_ctx: 1024 }
+                // Use optimal robust parameters matching PyQt6 app to prevent Empty Response
+                options: { temperature: 0.2, top_p: 0.9, num_predict: 2048 }
               })
             });
             if (response.ok) break;
