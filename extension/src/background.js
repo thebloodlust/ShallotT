@@ -56,6 +56,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     });
     return true; // Keep sendResponse channel active
+  } else if (request.action === "get-models") {
+    const url = request.url.replace(/\/$/, "");
+    const key = request.key || "";
+    const headers = {};
+    if (key) headers["Authorization"] = `Bearer ${key}`;
+
+    fetch(`${url}/api/tags`, { method: "GET", headers: headers })
+      .then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then(data => {
+        const models = data.models ? data.models.map(m => m.name) : [];
+        sendResponse({ success: true, models: models });
+      })
+      .catch(err => {
+        sendResponse({ success: false, error: err.message });
+      });
+    return true; // Keep sendResponse channel active
   }
 });
 

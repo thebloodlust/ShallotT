@@ -20,15 +20,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let delayTimer;
 
+  // Function to dynamically load Ollama models and populate select dropdown
+  function loadOllamaModels(selectedModelValue) {
+    const url = ollamaUrl.value.trim().replace(/\/$/, "");
+    const key = ollamaApiKey.value.trim();
+    
+    // Clear and add a loading/temporary option
+    ollamaModel.innerHTML = "";
+    const activeModel = selectedModelValue || "gemma:latest";
+    const tempOpt = document.createElement("option");
+    tempOpt.value = activeModel;
+    tempOpt.textContent = activeModel + " (sauvegardé)";
+    tempOpt.selected = true;
+    ollamaModel.appendChild(tempOpt);
+
+    // Call background service worker to fetch models securely (cross-origin bypassed)
+    chrome.runtime.sendMessage({
+      action: "get-models",
+      url: url,
+      key: key
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.log("Background error fetching models:", chrome.runtime.lastError.message);
+        return;
+      }
+
+      if (response && response.success && response.models && response.models.length > 0) {
+        ollamaModel.innerHTML = "";
+        let found = false;
+        response.models.forEach(modelName => {
+          const opt = document.createElement("option");
+          opt.value = modelName;
+          opt.textContent = modelName;
+          if (modelName === activeModel) {
+            opt.selected = true;
+            found = true;
+          }
+          ollamaModel.appendChild(opt);
+        });
+
+        // If the saved model was not in the list, add it back to be safe
+        if (!found) {
+          const opt = document.createElement("option");
+          opt.value = activeModel;
+          opt.textContent = activeModel;
+          opt.selected = true;
+          ollamaModel.appendChild(opt);
+        }
+      }
+    });
+  }
+
   // Load saved settings & selections
   chrome.storage.local.get([
     'ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'srcLang', 'targetLang', 'lastQueryText'
   ], (result) => {
     if (result.ollamaUrl) ollamaUrl.value = result.ollamaUrl;
-    if (result.ollamaModel) ollamaModel.value = result.ollamaModel;
     if (result.ollamaApiKey) ollamaApiKey.value = result.ollamaApiKey;
     if (result.srcLang) srcLang.value = result.srcLang;
     if (result.targetLang) targetLang.value = result.targetLang;
+    
+    // Load models list
+    loadOllamaModels(result.ollamaModel);
     
     // Automatically retrieve browser's active selection first, or fallback to saved last query text
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -55,14 +108,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Settings visibility toggle
   toggleSettings.addEventListener('click', () => {
-    settingsPanel.style.display = settingsPanel.style.display === 'block' ? 'none' : 'block';
+    const isVisible = settingsPanel.style.display === 'block';
+    settingsPanel.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) {
+      // Reload models on opening options panel
+      loadOllamaModels(ollamaModel.value);
+    }
   });
 
   // Save Config
   saveSettings.addEventListener('click', () => {
     chrome.storage.local.set({
       ollamaUrl: ollamaUrl.value.trim(),
-      ollamaModel: ollamaModel.value.trim(),
+      ollamaModel: ollamaModel.value,
       ollamaApiKey: ollamaApiKey.value.trim()
     }, () => {
       showStatus(testStatus, "Configuration sauvegardée !", "success");
@@ -70,25 +128,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Test Ollama server connection
-  testSettings.addEventListener('click', async () => {
+  // Test Ollama server connection and refresh models
+  testSettings.addEventListener('click', () => {
     const url = ollamaUrl.value.trim().replace(/\/$/, "");
     const key = ollamaApiKey.value.trim();
     showStatus(testStatus, "Connexion...", "");
-    try {
-      const headers = {};
-      if (key) headers["Authorization"] = `Bearer ${key}`;
-      const response = await fetch(`${url}/api/tags`, { method: 'GET', headers: headers });
-      if (response.ok) {
-        const data = await response.json();
-        const models = data.models ? data.models.map(m => m.name) : [];
-        showStatus(testStatus, `Connecté ! ${models.length} modèles trouvés.`, "success");
-      } else {
-        showStatus(testStatus, `Erreur serveur (Code: ${response.status})`, "error");
+
+    chrome.runtime.sendMessage({
+      action: "get-models",
+      url: url,
+      key: key
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        showStatus(testStatus, "Erreur d'extension.", "error");
+        return;
       }
-    } catch (err) {
-      showStatus(testStatus, "Impossible de joindre Ollama. Vérifiez l'URL ou le VPN.", "error");
-    }
+      if (response && response.success) {
+        // Refresh models dropdown
+        const currentSelected = ollamaModel.value;
+        loadOllamaModels(currentSelected);
+        showStatus(testStatus, `Connecté ! ${response.models.length} modèles trouvés et mis à jour.`, "success");
+      } else {
+        showStatus(testStatus, `Erreur : ${response ? response.error : "Impossible de joindre Ollama"}`, "error");
+      }
+    });
   });
 
   // Auto-translate on key up (debounce 600ms)
@@ -145,61 +208,42 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Save state
+    globalStatus.textContent = "Traduction en cours...";
+    globalStatus.className = "status-msg";
+
+    // Save languages and query
     chrome.storage.local.set({
       srcLang: srcLang.value,
       targetLang: targetLang.value,
-      lastQueryText: text
-    });
+      lastQueryText: text,
+      ollamaUrl: ollamaUrl.value.trim(),
+      ollamaModel: ollamaModel.value,
+      ollamaApiKey: ollamaApiKey.value.trim()
+    }, () => {
+      // Execute the request securely via the background worker
+      chrome.runtime.sendMessage({
+        action: "secure-translate",
+        text: text
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          targetText.value = `❌ Erreur de communication avec l'arrière-plan :\n${chrome.runtime.lastError.message}`;
+          globalStatus.textContent = "Échec.";
+          globalStatus.className = "status-msg error";
+          return;
+        }
 
-    globalStatus.textContent = "Traduction en cours par Gemma 2...";
-    globalStatus.className = "status-msg";
-
-    const localUrl = ollamaUrl.value.trim().replace(/\/$/, "");
-    const model = ollamaModel.value.trim();
-    const key = ollamaApiKey.value.trim();
-
-    const fromL = srcLang.value;
-    const toL = targetLang.value;
-    
-    let promptContext = `Translate the following text into ${toL}.`;
-    if (fromL !== "Auto Detection") {
-      promptContext = `Translate the following text from ${fromL} to ${toL}.`;
-    }
-
-    const fullPrompt = `<start_of_turn>user\nYou are a professional, high-performance translator like DeepL. Translate the text accurately. Preserve the original formatting, paragraph breaks, tone, and style.\nCRITICAL: Do not write any explanations, summaries, preamble, warning, notes, or code blocks. Just output the translation directly.\n\nInstruction: ${promptContext}\n\nText to translate:\n${text}\n<start_of_turn>model\n`;
-
-    try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (key) headers['Authorization'] = `Bearer ${key}`;
-
-      const response = await fetch(`${localUrl}/api/generate`, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify({
-          model: model,
-          prompt: fullPrompt,
-          stream: false,
-          options: {
-            temperature: 0.2,
-            top_p: 0.9,
-            num_predict: 2048
-          }
-        })
+        if (response && response.success) {
+          targetText.value = response.translation;
+          globalStatus.textContent = "Traduction réussie.";
+          globalStatus.className = "status-msg success";
+        } else {
+          const localUrl = ollamaUrl.value.trim().replace(/\/$/, "");
+          const model = ollamaModel.value;
+          targetText.value = `❌ Erreur de traduction :\n${response ? response.error : "Erreur inconnue"}\n\nVeuillez vérifier :\n1. Si Ollama tourne sur ${localUrl}\n2. Si le modèle '${model}' est disponible.\n3. Si vous utilisez Tailscale/Wireguard, vérifiez l'adresse IP et la connexion.`;
+          globalStatus.textContent = "Échec.";
+          globalStatus.className = "status-msg error";
+        }
       });
-
-      if (!response.ok) {
-        throw new Error(`Erreur serveur (${response.status})`);
-      }
-
-      const result = await response.json();
-      targetText.value = result.response ? result.response.trim() : "";
-      globalStatus.textContent = "Traduction réussie.";
-      globalStatus.className = "status-msg success";
-    } catch (err) {
-      targetText.value = `❌ Erreur de traduction :\n${err.message}\n\nVeuillez vérifier :\n1. Si Ollama tourne sur ${localUrl}\n2. Si le modèle '${model}' est disponible.\n3. Si vous utilisez Tailscale/Wireguard, vérifiez l'adresse IP et la connexion.`;
-      globalStatus.textContent = "Échec.";
-      globalStatus.className = "status-msg error";
-    }
+    });
   }
 });
