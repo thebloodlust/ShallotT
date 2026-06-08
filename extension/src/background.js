@@ -107,18 +107,34 @@ chrome.commands.onCommand.addListener((command) => {
     // Inject scripting to read page selection and pop up browser action / dialog or prompt
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0] && tabs[0].id) {
-        chrome.scripting.executeScript({
-          target: { tabId: tabs[0].id },
-          func: () => window.getSelection().toString()
-        }, (res) => {
-          if (res && res[0] && res[0].result) {
-            const selectedText = res[0].result;
-            // Store selected text and open popup
-            chrome.storage.local.set({ lastQueryText: selectedText }, () => {
-              chrome.action.openPopup ? chrome.action.openPopup() : alert("Selection capturée, cliquez sur l'icône de l'extension ShallotT pour traduire !");
-            });
-          }
-        });
+        if (chrome.scripting) {
+          chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            func: () => window.getSelection().toString()
+          }, (res) => {
+            if (res && res[0] && res[0].result) {
+              const selectedText = res[0].result;
+              // Store selected text and open popup
+              chrome.storage.local.set({ lastQueryText: selectedText }, () => {
+                const action = chrome.action || chrome.browserAction;
+                action.openPopup ? action.openPopup() : alert("Selection capturée, cliquez sur l'icône de l'extension ShallotT pour traduire !");
+              });
+            }
+          });
+        } else {
+          // MSV2 Fallback for tabs injection
+          chrome.tabs.executeScript(tabs[0].id, {
+            code: "window.getSelection().toString()"
+          }, (res) => {
+            if (res && res[0]) {
+              const selectedText = res[0];
+              chrome.storage.local.set({ lastQueryText: selectedText }, () => {
+                const action = chrome.action || chrome.browserAction;
+                action.openPopup ? action.openPopup() : alert("Selection capturée, cliquez sur l'icône de l'extension ShallotT pour traduire !");
+              });
+            }
+          });
+        }
       }
     });
   }
@@ -133,14 +149,21 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     chrome.storage.local.set({ lastQueryText: selectedText }, () => {
       // Direct notification or automatic popup opening if supported,
       // or inject an clean absolute overlay bubble direct in page!
-      chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: displayInlineTranslationBubble,
-        args: [selectedText]
-      }).catch(err => {
-        // Fallback: Notify user to open the popup
-        chrome.action.openPopup ? chrome.action.openPopup() : console.log("Translation stored, open extension window.");
-      });
+      if (chrome.scripting) {
+        chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: displayInlineTranslationBubble,
+          args: [selectedText]
+        }).catch(err => {
+          const action = chrome.action || chrome.browserAction;
+          action.openPopup ? action.openPopup() : console.log("Translation stored, open extension window.");
+        });
+      } else {
+        // MV2 fallback
+        chrome.tabs.executeScript(tab.id, {
+          code: `(${displayInlineTranslationBubble.toString()})(${JSON.stringify(selectedText)})`
+        });
+      }
     });
   }
 });
