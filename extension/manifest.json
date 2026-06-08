@@ -1,5 +1,5 @@
 {
-  "manifest_version": 3,
+  "manifest_version": 2,
   "name": "ShallotT - DeepL AI Local",
   "version": "1.0.0",
   "description": "Equivalent DeepL local et ultra-rapide utilisant Ollama et Gemma pour traduire instantanément.",
@@ -7,14 +7,12 @@
     "activeTab",
     "storage",
     "contextMenus",
-    "scripting"
-  ],
-  "host_permissions": [
-    "<all_urls>",
     "http://localhost:11434/*",
-    "http://127.0.0.1:11434/*"
+    "http://127.0.0.1:11434/*",
+    "http://192.168.1.12:11434/*",
+    "<all_urls>"
   ],
-  "action": {
+  "browser_action": {
     "default_popup": "src/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -24,10 +22,11 @@
     }
   },
   "background": {
-    "scripts": ["src/background.js"]
+    "scripts": ["src/background.js"],
+    "persistent": false
   },
   "commands": {
-    "_execute_action": {
+    "_execute_browser_action": {
       "suggested_key": {
         "default": "Ctrl+Shift+Y"
       },
