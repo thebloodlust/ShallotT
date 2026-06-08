@@ -20,6 +20,45 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
+// Listener to execute secure extension-level fetch requests to bypass webpage CORS/Mixed-Content limitations
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "secure-translate") {
+    chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang'], async (stored) => {
+      const url = (stored.ollamaUrl || "http://localhost:11434").replace(/\/$/, "");
+      const model = stored.ollamaModel || "gemma:latest";
+      const key = stored.ollamaApiKey || "";
+      const targetL = stored.targetLang || "French";
+
+      const promptContext = `Translate the following text into ${targetL}.`;
+      const fullPrompt = `<start_of_turn>user\nYou are a professional, high-performance translator like DeepL. Translate the text accurately. Preserve the original formatting, paragraph breaks, tone, and style.\nCRITICAL: Do not write any explanations, summaries, preamble, warning, notes, or code blocks. Just output the translation directly.\n\nInstruction: ${promptContext}\n\nText to translate:\n${request.text}\n<start_of_turn>model\n`;
+
+      try {
+        const headers = { "Content-Type": "application/json" };
+        if (key) headers["Authorization"] = `Bearer ${key}`;
+
+        const response = await fetch(`${url}/api/generate`, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify({
+            model: model,
+            prompt: fullPrompt,
+            stream: false,
+            options: { temperature: 0.2, top_p: 0.9, num_predict: 2048 }
+          })
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        const translation = result.response ? result.response.trim() : "Empty response";
+        sendResponse({ success: true, translation: translation });
+      } catch (err) {
+        sendResponse({ success: false, error: err.message });
+      }
+    });
+    return true; // Keep sendResponse channel active
+  }
+});
+
 // Listener for keyboard command shortcuts
 chrome.commands.onCommand.addListener((command) => {
   if (command === "translate-selection") {
@@ -119,43 +158,22 @@ function displayInlineTranslationBubble(text) {
   };
   document.addEventListener("mousedown", outerClick);
 
-  // Query Ollama direct from the page using storage configs
-  chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang'], async (stored) => {
-    const url = (stored.ollamaUrl || "http://localhost:11434").replace(/\/$/, "");
-    const model = stored.ollamaModel || "gemma2:9b";
-    const key = stored.ollamaApiKey || "";
-    const targetL = stored.targetLang || "French";
+  // Send message to background script to perform secure cross-origin fetch
+  chrome.runtime.sendMessage({ action: "secure-translate", text: text }, (response) => {
+    const resContainer = document.getElementById("shallott-bubble-result");
+    if (!resContainer) return;
 
-    const promptContext = `Translate the following text into ${targetL}.`;
-    const fullPrompt = `<start_of_turn>user\nYou are a professional, high-performance translator like DeepL. Translate the text accurately. Preserve the original formatting, paragraph breaks, tone, and style.\nCRITICAL: Do not write any explanations, summaries, preamble, warning, notes, or code blocks. Just output the translation directly.\n\nInstruction: ${promptContext}\n\nText to translate:\n${text}\n<start_of_turn>model\n`;
+    if (chrome.runtime.lastError) {
+      resContainer.style.color = "#f38ba8";
+      resContainer.textContent = `Erreur : ${chrome.runtime.lastError.message}`;
+      return;
+    }
 
-    try {
-      const headers = { "Content-Type": "application/json" };
-      if (key) headers["Authorization"] = `Bearer ${key}`;
-
-      const response = await fetch(`${url}/api/generate`, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify({
-          model: model,
-          prompt: fullPrompt,
-          stream: false,
-          options: { temperature: 0.2, top_p: 0.9, num_predict: 2048 }
-        })
-      });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const result = await response.json();
-      const translation = result.response ? result.response.trim() : "Empty response";
-      
-      const resContainer = document.getElementById("shallott-bubble-result");
-      if (resContainer) resContainer.textContent = translation;
-    } catch (err) {
-      const resContainer = document.getElementById("shallott-bubble-result");
-      if (resContainer) {
-        resContainer.style.color = "#f38ba8";
-        resContainer.textContent = `Erreur : ${err.message}. Assurez-vous qu'Ollama est actif à l'adresse ${url} avec le modèle ${model}`;
-      }
+    if (response && response.success) {
+      resContainer.textContent = response.translation;
+    } else {
+      resContainer.style.color = "#f38ba8";
+      resContainer.textContent = `Erreur : ${response ? response.error : "Unknown background error"}`;
     }
   });
 }

@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QPushButton, QLabel, QLineEdit, QCheckBox, 
     QMessageBox, QSystemTrayIcon, QMenu, QGroupBox, QTabWidget
 )
-from PyQt6.QtGui import QFont, QIcon, QAction, QColor, QPalette, QKeySequence
+from PyQt6.QtGui import QFont, QIcon, QAction, QColor, QPalette, QKeySequence, QPixmap
 import pyperclip
 
 from src.config import load_config, save_config, CONFIG_PATH
@@ -61,6 +61,13 @@ class ShallotTApp(QMainWindow):
         # UI setup
         self.setWindowTitle("ShallotT - DeepL AI Local")
         self.resize(750, 480)
+        
+        # Load custom Shallot icon
+        import os
+        icon_path = os.path.join(os.path.dirname(__file__), "shallot.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+            
         self.setup_dark_theme()
         
         self.init_ui()
@@ -340,10 +347,15 @@ class ShallotTApp(QMainWindow):
         self.tray_icon = QSystemTrayIcon(self)
         
         # Simple native looking drawing or fallback to simple icon
-        # Create a tiny custom 64x64 pixmap for ShallotT
-        pixmap = QPixmap(64, 64)
-        pixmap.fill(QColor(137, 180, 250)) # matching light blue accent
-        self.tray_icon.setIcon(QIcon(pixmap))
+        import os
+        icon_path = os.path.join(os.path.dirname(__file__), "shallot.png")
+        if os.path.exists(icon_path):
+            self.tray_icon.setIcon(QIcon(icon_path))
+        else:
+            # Create a tiny custom 64x64 pixmap fallback for ShallotT
+            pixmap = QPixmap(64, 64)
+            pixmap.fill(QColor(137, 180, 250)) # matching light blue accent
+            self.tray_icon.setIcon(QIcon(pixmap))
         
         # Create context menu
         tray_menu = QMenu()
