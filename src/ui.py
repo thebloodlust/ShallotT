@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, 
     QComboBox, QPushButton, QLabel, QLineEdit, QCheckBox, 
     QMessageBox, QSystemTrayIcon, QMenu, QGroupBox, QTabWidget,
-    QApplication
+    QApplication, QSpinBox
 )
 from PyQt6.QtGui import QFont, QIcon, QAction, QColor, QPalette, QKeySequence, QPixmap
 import pyperclip
@@ -444,6 +444,16 @@ class ShallotTApp(QMainWindow):
         theme_layout.addWidget(self.theme_combo)
         og_layout.addLayout(theme_layout)
         
+        # Character Limit row
+        char_limit_layout = QHBoxLayout()
+        char_limit_layout.addWidget(QLabel("Max Character Limit (Limite de caractères) :"))
+        self.char_limit_spin = QSpinBox()
+        self.char_limit_spin.setRange(100, 1000000)
+        self.char_limit_spin.setSingleStep(1000)
+        self.char_limit_spin.setValue(self.config.get("max_characters", 10000))
+        char_limit_layout.addWidget(self.char_limit_spin)
+        og_layout.addLayout(char_limit_layout)
+        
         settings_layout.addWidget(ollama_group)
         
         # Shortcuts Info & Customization
@@ -685,6 +695,13 @@ class ShallotTApp(QMainWindow):
             self.target_text_edit.clear()
             return
             
+        max_chars = self.config.get("max_characters", 10000)
+        self.pending_truncation_note = ""
+        if len(text) > max_chars:
+            text = text[:max_chars]
+            self.pending_truncation_note = f"\n\n--- [Note: Traduction limitée à {max_chars} caractères pour optimiser la vitesse de traitement] ---"
+            self.statusBar().showMessage(f"Text truncated to {max_chars} characters to maintain high performance.", 5000)
+            
         src_lang = self.src_lang_box.currentText()
         target_lang = self.target_lang_box.currentText()
         
@@ -712,7 +729,8 @@ class ShallotTApp(QMainWindow):
         worker.start()
 
     def on_translation_success(self, text):
-        self.target_text_edit.setPlainText(text)
+        note = getattr(self, "pending_truncation_note", "")
+        self.target_text_edit.setPlainText(text + note)
         self.status_lbl.setText("Success")
         self.statusBar().showMessage("Translation complete.", 3000)
 
@@ -785,6 +803,9 @@ class ShallotTApp(QMainWindow):
         # Save custom shortcuts
         self.config["shortcut_translate"] = self.shortcut_translate_input.text().strip().lower()
         self.config["shortcut_ocr"] = self.shortcut_ocr_input.text().strip().lower()
+        
+        # Save max characters limit
+        self.config["max_characters"] = self.char_limit_spin.value()
         
         # Save app Theme selection
         theme_sel = "light" if "light" in self.theme_combo.currentText().lower() else "dark"

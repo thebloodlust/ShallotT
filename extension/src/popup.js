@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load saved settings & selections
   chrome.storage.local.get([
-    'ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'srcLang', 'targetLang', 'lastQueryText', 'customContextMenuLang'
+    'ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'srcLang', 'targetLang', 'lastQueryText', 'customContextMenuLang', 'maxCharacters'
   ], (result) => {
     if (result.ollamaUrl) ollamaUrl.value = result.ollamaUrl;
     if (result.ollamaApiKey) ollamaApiKey.value = result.ollamaApiKey;
@@ -81,6 +81,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (result.targetLang) targetLang.value = result.targetLang;
     if (result.customContextMenuLang) {
       document.getElementById('customContextMenuLang').value = result.customContextMenuLang;
+    }
+    if (result.maxCharacters) {
+      document.getElementById('maxCharacters').value = result.maxCharacters;
     }
     
     // Load models list
@@ -125,7 +128,8 @@ document.addEventListener('DOMContentLoaded', () => {
       ollamaUrl: ollamaUrl.value.trim(),
       ollamaModel: ollamaModel.value,
       ollamaApiKey: ollamaApiKey.value.trim(),
-      customContextMenuLang: document.getElementById('customContextMenuLang').value.trim()
+      customContextMenuLang: document.getElementById('customContextMenuLang').value.trim(),
+      maxCharacters: parseInt(document.getElementById('maxCharacters').value, 10) || 10000
     }, () => {
       showStatus(testStatus, "Configuration sauvegardée !", "success");
       setTimeout(() => { settingsPanel.style.display = 'none'; }, 1000);

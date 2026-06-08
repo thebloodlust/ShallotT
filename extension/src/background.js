@@ -171,10 +171,11 @@ function rebuildContextMenus(langString) {
 // Set up Context Menu item on installation
 chrome.runtime.onInstalled.addListener(() => {
   // Setup default values in storage
-  chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'targetLang', 'customContextMenuLang'], (result) => {
+  chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'targetLang', 'customContextMenuLang', 'maxCharacters'], (result) => {
     if (!result.ollamaUrl) chrome.storage.local.set({ ollamaUrl: DEFAULT_URL });
     if (!result.ollamaModel) chrome.storage.local.set({ ollamaModel: DEFAULT_MODEL });
     if (!result.targetLang) chrome.storage.local.set({ targetLang: "French" });
+    if (!result.maxCharacters) chrome.storage.local.set({ maxCharacters: 10000 });
     
     const initialLangs = result.customContextMenuLang || "Français, Anglais, Espagnol, Allemand, Italien, Portugais, Chinois, Japonais, Russe";
     if (!result.customContextMenuLang) {
@@ -231,14 +232,22 @@ function normalizeUrl(url) {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "secure-translate") {
     const trackingId = request.trackingId || "none";
-    chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang'], async (stored) => {
+    chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang', 'maxCharacters'], async (stored) => {
       const url = normalizeUrl(stored.ollamaUrl);
       const model = stored.ollamaModel || "gemma:latest";
       const key = stored.ollamaApiKey || "";
       const targetL = stored.targetLang || "French";
+      const maxChars = stored.maxCharacters || 10000;
+
+      let textToTranslate = request.text || "";
+      let truncatedNote = "";
+      if (textToTranslate.length > maxChars) {
+        textToTranslate = textToTranslate.substring(0, maxChars);
+        truncatedNote = `\n\n--- [Note: Traduction limitée à ${maxChars} caractères pour optimiser la vitesse de traitement] ---`;
+      }
 
       const promptContext = `Translate the following text into ${targetL}.`;
-      const fullPrompt = `<start_of_turn>user\nYou are a professional, high-performance translator like DeepL. Translate the text accurately. Preserve the original formatting, paragraph breaks, tone, and style.\nCRITICAL: Do not write any explanations, summaries, preamble, warning, notes, or code blocks. Just output the translation directly.\n\nInstruction: ${promptContext}\n\nText to translate:\n${request.text}\n<start_of_turn>model\n`;
+      const fullPrompt = `<start_of_turn>user\nYou are a professional, high-performance translator like DeepL. Translate the text accurately. Preserve the original formatting, paragraph breaks, tone, and style.\nCRITICAL: Do not write any explanations, summaries, preamble, warning, notes, or code blocks. Just output the translation directly.\n\nInstruction: ${promptContext}\n\nText to translate:\n${textToTranslate}\n<start_of_turn>model\n`;
 
       let isAborted = false;
       const abortListener = (msg) => {
@@ -292,7 +301,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         const result = await response.json();
-        const translation = result.response ? result.response.trim() : "Empty response";
+        let translation = result.response ? result.response.trim() : "Empty response";
+        if (typeof truncatedNote !== "undefined" && truncatedNote) {
+          translation += truncatedNote;
+        }
         sendResponse({ success: true, translation: translation });
       } catch (err) {
         sendResponse({ success: false, error: err.message });

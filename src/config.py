@@ -9,6 +9,7 @@ DEFAULT_CONFIG = {
     "source_lang": "Auto Detection",
     "target_lang": "French",
     "ui_theme": "dark",
+    "max_characters": 10000, # Limite par défaut à 10 000 lettres pour optimiser la vitesse de traitement
     "shortcut_translate": "ctrl+c+c",
     "shortcut_ocr": "ctrl+f8"
 }
