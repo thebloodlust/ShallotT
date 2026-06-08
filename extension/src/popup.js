@@ -73,12 +73,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load saved settings & selections
   chrome.storage.local.get([
-    'ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'srcLang', 'targetLang', 'lastQueryText'
+    'ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'srcLang', 'targetLang', 'lastQueryText', 'customContextMenuLang'
   ], (result) => {
     if (result.ollamaUrl) ollamaUrl.value = result.ollamaUrl;
     if (result.ollamaApiKey) ollamaApiKey.value = result.ollamaApiKey;
     if (result.srcLang) srcLang.value = result.srcLang;
     if (result.targetLang) targetLang.value = result.targetLang;
+    if (result.customContextMenuLang) {
+      document.getElementById('customContextMenuLang').value = result.customContextMenuLang;
+    }
     
     // Load models list
     loadOllamaModels(result.ollamaModel);
@@ -121,7 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.set({
       ollamaUrl: ollamaUrl.value.trim(),
       ollamaModel: ollamaModel.value,
-      ollamaApiKey: ollamaApiKey.value.trim()
+      ollamaApiKey: ollamaApiKey.value.trim(),
+      customContextMenuLang: document.getElementById('customContextMenuLang').value.trim()
     }, () => {
       showStatus(testStatus, "Configuration sauvegardée !", "success");
       setTimeout(() => { settingsPanel.style.display = 'none'; }, 1000);

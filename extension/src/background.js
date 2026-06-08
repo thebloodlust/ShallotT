@@ -105,41 +105,75 @@ function detectIsFrenchHeuristic(txt) {
   return (frenchCount / words.length) > 0.12 || (words.length >= 3 && frenchCount >= 1);
 }
 
-// Set up Context Menu item on installation
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "shallott-translate-selection",
-    title: "Traduire avec ShallotT Local",
-    contexts: ["selection"]
-  });
-
-  const subLangMenu = [
-    { id: "shallott-lang-French", title: "Traduire en Français 🇫🇷" },
-    { id: "shallott-lang-English", title: "Traduire en Anglais 🇬🇧" },
-    { id: "shallott-lang-Spanish", title: "Traduire en Espagnol 🇪🇸" },
-    { id: "shallott-lang-German", title: "Traduire en Allemand 🇩🇪" },
-    { id: "shallott-lang-Italian", title: "Traduire en Italien 🇮🇹" },
-    { id: "shallott-lang-Portuguese", title: "Traduire en Portugais 🇵🇹" },
-    { id: "shallott-lang-Chinese", title: "Traduire en Chinois 🇨🇳" },
-    { id: "shallott-lang-Japanese", title: "Traduire en Japonais 🇯🇵" },
-    { id: "shallott-lang-Russian", title: "Traduire en Russe 🇷🇺" }
-  ];
-
-  subLangMenu.forEach(item => {
+// Rebuild context menus based on user custom list of languages
+function rebuildContextMenus(langString) {
+  if (!chrome.contextMenus) return;
+  
+  chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
-      id: item.id,
-      parentId: "shallott-translate-selection",
-      title: item.title,
+      id: "shallott-translate-selection",
+      title: "Traduire avec ShallotT Local",
       contexts: ["selection"]
     });
-  });
 
+    // Default list if empty or invalid
+    let list = ["Français", "Anglais", "Espagnol", "Allemand", "Italien", "Portugais", "Chinois", "Japonais", "Russe"];
+    if (langString) {
+      list = langString.split(",")
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+    }
+
+    // Map French titles to internal English values
+    const langMap = {
+      "fransais": "French", "français": "French", "francais": "French", "french": "French",
+      "anglais": "English", "english": "English",
+      "espagnol": "Spanish", "spanish": "Spanish",
+      "allemand": "German", "german": "German",
+      "italien": "Italian", "italian": "Italian",
+      "portugais": "Portuguese", "portuguese": "Portuguese",
+      "chinois": "Chinese", "chinese": "Chinese",
+      "japonais": "Japanese", "japanese": "Japanese",
+      "russe": "Russian", "russian": "Russian"
+    };
+
+    list.forEach(item => {
+      if (!item) return;
+      const normalized = item.charAt(0).toUpperCase() + item.slice(1);
+      const lookVal = item.toLowerCase();
+      const mappedLang = langMap[lookVal] || normalized;
+
+      chrome.contextMenus.create({
+        id: "shallott-lang-" + mappedLang,
+        parentId: "shallott-translate-selection",
+        title: `Traduire en ${normalized}`,
+        contexts: ["selection"]
+      });
+    });
+  });
+}
+
+// Set up Context Menu item on installation
+chrome.runtime.onInstalled.addListener(() => {
   // Setup default values in storage
-  chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'targetLang'], (result) => {
+  chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'targetLang', 'customContextMenuLang'], (result) => {
     if (!result.ollamaUrl) chrome.storage.local.set({ ollamaUrl: DEFAULT_URL });
     if (!result.ollamaModel) chrome.storage.local.set({ ollamaModel: DEFAULT_MODEL });
     if (!result.targetLang) chrome.storage.local.set({ targetLang: "French" });
+    
+    const initialLangs = result.customContextMenuLang || "Français, Anglais, Espagnol, Allemand, Italien, Portugais, Chinois, Japonais, Russe";
+    if (!result.customContextMenuLang) {
+      chrome.storage.local.set({ customContextMenuLang: initialLangs });
+    }
+    rebuildContextMenus(initialLangs);
   });
+});
+
+// Rebuild when storage changes
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local" && changes.customContextMenuLang) {
+    rebuildContextMenus(changes.customContextMenuLang.newValue);
+  }
 });
 
 function normalizeUrl(url) {
@@ -194,18 +228,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const headers = { "Content-Type": "application/json" };
         if (key) headers["Authorization"] = `Bearer ${key}`;
 
-        const response = await fetch(`${url}/api/generate`, {
-          method: "POST",
-          headers: headers,
-          body: JSON.stringify({
-            model: model,
-            prompt: fullPrompt,
-            stream: false,
-            options: { temperature: 0.2, top_p: 0.9, num_predict: 2048 }
-          })
-        });
+        // Retry wrapper for translation fetch to bypass transient "fetch resource" failures
+        let response;
+        let lastErr;
+        const maxRetries = 3;
+        for (let i = 0; i < maxRetries; i++) {
+          try {
+            response = await fetch(`${url}/api/generate`, {
+              method: "POST",
+              headers: headers,
+              body: JSON.stringify({
+                model: model,
+                prompt: fullPrompt,
+                stream: false,
+                options: { temperature: 0.2, top_p: 0.9, num_predict: 2048 }
+              })
+            });
+            if (response.ok) break;
+          } catch (err) {
+            lastErr = err;
+            if (i < maxRetries - 1) {
+              await new Promise(resolve => setTimeout(resolve, 300)); // wait 300ms before retry
+            }
+          }
+        }
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response || !response.ok) {
+          throw new Error(response ? `HTTP ${response.status}` : (lastErr ? lastErr.message : "Fetch translation failed"));
+        }
+
         const result = await response.json();
         const translation = result.response ? result.response.trim() : "Empty response";
         sendResponse({ success: true, translation: translation });
@@ -220,11 +271,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const headers = {};
     if (key) headers["Authorization"] = `Bearer ${key}`;
 
-    fetch(`${url}/api/tags`, { method: "GET", headers: headers })
-      .then(response => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
-      })
+    const fetchWithRetry = async (retries = 3, delay = 300) => {
+      let lastErr;
+      for (let i = 0; i < retries; i++) {
+        try {
+          const response = await fetch(`${url}/api/tags`, { method: "GET", headers: headers });
+          if (response.ok) {
+            return await response.json();
+          }
+          throw new Error(`HTTP ${response.status}`);
+        } catch (err) {
+          lastErr = err;
+          if (i < retries - 1) {
+            await new Promise(res => setTimeout(res, delay));
+          }
+        }
+      }
+      throw lastErr;
+    };
+
+    fetchWithRetry()
       .then(data => {
         const models = data.models ? data.models.map(m => m.name) : [];
         sendResponse({ success: true, models: models });
@@ -366,25 +432,70 @@ function displayInlineTranslationBubble(text) {
 
   // Bubble internal layout
   bubble.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2e3440; padding-bottom:6px; margin-bottom:8px;">
-      <span style="font-weight:bold; color:#ffaa33;">ShallotT Local Translation</span>
-      <span id="shallott-close-btn" style="cursor:pointer; padding:2px 6px; font-weight:bold;">✕</span>
+    <div id="shallott-bubble-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2e3440; padding-bottom:6px; margin-bottom:8px; cursor:move; user-select:none;">
+      <span style="font-weight:bold; color:#ffaa33; pointer-events:none;">ShallotT Local Translation 🧅</span>
+      <span id="shallott-close-btn" style="cursor:pointer; padding:2px 6px; font-weight:bold; user-select:none;">✕</span>
     </div>
-    <div style="font-style:italic; color:#707a8a; margin-bottom:5px; max-height:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">"${text}"</div>
+    <div style="font-style:italic; color:#707a8a; margin-bottom:5px; max-height:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; pointer-events:none;">"${text}"</div>
     <div id="shallott-bubble-result" style="line-height:1.5; color:#a6e3a1; max-height:180px; overflow-y:auto; word-break:break-word;">Traductions en cours...</div>
-    <div style="display:flex; justify-content:flex-end; margin-top:8px; font-size:10px; color:#707a8a;">Gemma local API</div>
+    <div style="display:flex; justify-content:flex-end; margin-top:8px; font-size:10px; color:#707a8a; pointer-events:none;">Gemma local API</div>
   `;
 
   document.body.appendChild(bubble);
 
-  // Close event listener
-  document.getElementById("shallott-close-btn").addEventListener("click", () => bubble.remove());
+  // Drag and drop mechanism for the floating widget
+  const header = document.getElementById("shallott-bubble-header");
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let initialLeft = 0;
+  let initialTop = 0;
+
+  header.addEventListener("mousedown", (e) => {
+    if (e.button !== 0 || e.target.id === "shallott-close-btn") return;
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    const rect = bubble.getBoundingClientRect();
+    initialLeft = rect.left;
+    initialTop = rect.top;
+    
+    // Switch styling dynamically to absolute coordinate placement relative to viewport
+    bubble.style.position = "fixed";
+    bubble.style.margin = "0";
+    
+    e.preventDefault();
+  });
+
+  const onMouseMove = (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    bubble.style.left = `${initialLeft + dx}px`;
+    bubble.style.top = `${initialTop + dy}px`;
+  };
+
+  const onMouseUp = () => {
+    isDragging = false;
+  };
+
+  document.addEventListener("mousemove", onMouseMove);
+  document.addEventListener("mouseup", onMouseUp);
+
+  // Close event listener (clears also mouse listeners to avoid memory leak)
+  document.getElementById("shallott-close-btn").addEventListener("click", () => {
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+    bubble.remove();
+  });
   
   // Close when clicking outside
   const outerClick = (e) => {
     if (!bubble.contains(e.target)) {
-      bubble.remove();
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
       document.removeEventListener("mousedown", outerClick);
+      bubble.remove();
     }
   };
   document.addEventListener("mousedown", outerClick);
