@@ -28,12 +28,12 @@ class OllamaTranslator:
             prompt_context = f"Translate the following text from {source_lang} to {target_lang}."
             
         full_prompt = (
-            f"System: You are an expert translator like DeepL. Translate the text accurately, preservation of tone, formatting, and style is key. "
-            f"CRITICAL: Do not write any explanations, summaries, preamble, warning or anything else. Just output the translation directly. "
-            f"Do not warp the output in markdown code blocks unless it was in the original text.\n\n"
+            f"<start_of_turn>user\n"
+            f"You are a professional, high-performance translator like DeepL. Translate the text accurately. Preserve the original formatting, paragraph breaks, tone, and style.\n"
+            f"CRITICAL: Do not write any explanations, summaries, preamble, warning, notes, or code blocks. Just output the translation directly.\n\n"
             f"Instruction: {prompt_context}\n\n"
-            f"Text to translate:\n{text}\n\n"
-            f"Translation:"
+            f"Text to translate:\n{text}\n"
+            f"<start_of_turn>model\n"
         )
 
         payload = {

@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
       promptContext = `Translate the following text from ${fromL} to ${toL}.`;
     }
 
-    const fullPrompt = `System: You are an expert translator like DeepL. Translate the text accurately, preservation of tone, formatting, and style is key. CRITICAL: Do not write any explanations, summaries, preamble, warning or anything else. Just output the translation directly. Do not warp the output in markdown code blocks unless it was in the original text.\n\nInstruction: ${promptContext}\n\nText to translate:\n${text}\n\nTranslation:`;
+    const fullPrompt = `<start_of_turn>user\nYou are a professional, high-performance translator like DeepL. Translate the text accurately. Preserve the original formatting, paragraph breaks, tone, and style.\nCRITICAL: Do not write any explanations, summaries, preamble, warning, notes, or code blocks. Just output the translation directly.\n\nInstruction: ${promptContext}\n\nText to translate:\n${text}\n<start_of_turn>model\n`;
 
     try {
       const headers = { 'Content-Type': 'application/json' };
