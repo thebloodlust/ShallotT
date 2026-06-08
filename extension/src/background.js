@@ -230,6 +230,7 @@ function normalizeUrl(url) {
 // Listener to execute secure extension-level fetch requests to bypass webpage CORS/Mixed-Content limitations
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "secure-translate") {
+    const trackingId = request.trackingId || "none";
     chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang'], async (stored) => {
       const url = normalizeUrl(stored.ollamaUrl);
       const model = stored.ollamaModel || "gemma:latest";
@@ -237,7 +238,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const targetL = stored.targetLang || "French";
 
       const promptContext = `Translate the following text into ${targetL}.`;
-      const fullPrompt = `<start_of_turn>user\nYou are a professional, high-performance translator like DeepL. Translate the text accurately. Preserve the original formatting, paragraph breaks, tone, and style.\nCRITICAL: Do not write any explanations, summaries, preamble, warning, notes, or code blocks. Just output the translation directly.\n\nInstruction: ${promptContext}\n\nText to translate:\n${request.text}\n<start_of_turn>model\n`;
+      const fullPrompt = `<start_of_turn>user\nYou are a professional, high-performance translator like DeepL. Translate the text accurately. Preserve the original formatting, tone, and style.\nCRITICAL: Do not write any explanations, summaries, preamble, warning, notes, or code blocks. Just output the translation directly.\n\nInstruction: ${promptContext}\n\nText to translate:\n${request.text}\n<start_of_turn>model\n`;
+
+      let isAborted = false;
+      const abortListener = (msg) => {
+        if (msg.action === "abort-translation" && msg.trackingId === trackingId) {
+          isAborted = true;
+          chrome.runtime.onMessage.removeListener(abortListener);
+        }
+      };
+      chrome.runtime.onMessage.addListener(abortListener);
 
       try {
         const headers = { "Content-Type": "application/json" };
@@ -246,8 +256,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // Retry wrapper for translation fetch to bypass transient "fetch resource" failures
         let response;
         let lastErr;
-        const maxRetries = 3;
+        const maxRetries = 2; // Reduced maximum retries for faster response
+
         for (let i = 0; i < maxRetries; i++) {
+          if (isAborted) {
+            throw new Error("AbortedByUser");
+          }
           try {
             response = await fetch(`${url}/api/generate`, {
               method: "POST",
@@ -256,16 +270,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 model: model,
                 prompt: fullPrompt,
                 stream: false,
-                options: { temperature: 0.2, top_p: 0.9, num_predict: 2048 }
+                // Limit num_predict for ultra speed, as translations don't need raw high sequence limits
+                options: { temperature: 0.1, top_p: 0.9, num_predict: 256, num_ctx: 1024 }
               })
             });
             if (response.ok) break;
           } catch (err) {
             lastErr = err;
-            if (i < maxRetries - 1) {
-              await new Promise(resolve => setTimeout(resolve, 300)); // wait 300ms before retry
+            if (i < maxRetries - 1 && !isAborted) {
+              await new Promise(resolve => setTimeout(resolve, 200)); // wait 200ms before retry
             }
           }
+        }
+
+        if (isAborted) {
+          throw new Error("AbortedByUser");
         }
 
         if (!response || !response.ok) {
@@ -277,6 +296,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ success: true, translation: translation });
       } catch (err) {
         sendResponse({ success: false, error: err.message });
+      } finally {
+        chrome.runtime.onMessage.removeListener(abortListener);
       }
     });
     return true; // Keep sendResponse channel active
@@ -497,8 +518,11 @@ function displayInlineTranslationBubble(text) {
   document.addEventListener("mousemove", onMouseMove);
   document.addEventListener("mouseup", onMouseUp);
 
-  // Close event listener (clears also mouse listeners to avoid memory leak)
+  // Close event listener (clears also mouse listeners to avoid memory leak and cancels active translate)
+  const currentTrackingId = "track-" + Date.now();
+
   document.getElementById("shallott-close-btn").addEventListener("click", () => {
+    chrome.runtime.sendMessage({ action: "abort-translation", trackingId: currentTrackingId });
     document.removeEventListener("mousemove", onMouseMove);
     document.removeEventListener("mouseup", onMouseUp);
     bubble.remove();
@@ -507,6 +531,7 @@ function displayInlineTranslationBubble(text) {
   // Close when clicking outside
   const outerClick = (e) => {
     if (!bubble.contains(e.target)) {
+      chrome.runtime.sendMessage({ action: "abort-translation", trackingId: currentTrackingId });
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
       document.removeEventListener("mousedown", outerClick);
@@ -516,11 +541,12 @@ function displayInlineTranslationBubble(text) {
   document.addEventListener("mousedown", outerClick);
 
   // Send message to background script to perform secure cross-origin fetch
-  chrome.runtime.sendMessage({ action: "secure-translate", text: text }, (response) => {
+  chrome.runtime.sendMessage({ action: "secure-translate", text: text, trackingId: currentTrackingId }, (response) => {
     const resContainer = document.getElementById("shallott-bubble-result");
     if (!resContainer) return;
 
     if (chrome.runtime.lastError) {
+      if (chrome.runtime.lastError.message.includes("AbortedByUser")) return;
       resContainer.style.color = "#f38ba8";
       resContainer.textContent = `Erreur : ${chrome.runtime.lastError.message}`;
       return;
@@ -529,6 +555,7 @@ function displayInlineTranslationBubble(text) {
     if (response && response.success) {
       resContainer.textContent = response.translation;
     } else {
+      if (response && response.error === "AbortedByUser") return;
       resContainer.style.color = "#f38ba8";
       resContainer.textContent = `Erreur : ${response ? response.error : "Unknown background error"}`;
     }
