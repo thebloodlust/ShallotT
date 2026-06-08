@@ -70,7 +70,11 @@ class ShallotTApp(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
             
-        self.setup_dark_theme()
+        theme = self.config.get("ui_theme", "dark")
+        if theme == "light":
+            self.setup_light_theme()
+        else:
+            self.setup_dark_theme()
         
         self.init_ui()
         self.setup_system_tray()
@@ -184,6 +188,112 @@ class ShallotTApp(QMainWindow):
             QStatusBar {
                 background: #11111b;
                 color: #a6adc8;
+            }
+        """)
+
+    def setup_light_theme(self):
+        """Sets a clean, highly readable light theme (similar to standard desktop apps or DeepL Light)."""
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Window, QColor(240, 240, 245))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(30, 30, 46))
+        palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(225, 225, 230))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(30, 30, 46))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.Text, QColor(30, 30, 46))
+        palette.setColor(QPalette.ColorRole.Button, QColor(220, 220, 225))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(30, 30, 46))
+        palette.setColor(QPalette.ColorRole.BrightText, QColor(37, 99, 235))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(37, 99, 235))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+        self.setPalette(palette)
+        
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f0f0f5;
+            }
+            QWidget {
+                color: #1e1e2e;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 13px;
+            }
+            QGroupBox {
+                border: 1px solid #cccccc;
+                border-radius: 8px;
+                margin-top: 10px;
+                font-weight: bold;
+                padding-top: 15px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+            QTextEdit {
+                background-color: #ffffff;
+                border: 1px solid #cccccc;
+                border-radius: 6px;
+                padding: 10px;
+                color: #1e1e2e;
+            }
+            QTextEdit:focus {
+                border: 1px solid #2563eb;
+            }
+            QComboBox, QLineEdit {
+                background-color: #ffffff;
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                padding: 5px 10px;
+                color: #1e1e2e;
+                min-height: 25px;
+            }
+            QComboBox:focus, QLineEdit:focus {
+                border: 1px solid #2563eb;
+            }
+            QPushButton {
+                background-color: #2563eb;
+                color: #ffffff;
+                border: none;
+                border-radius: 5px;
+                padding: 6px 15px;
+                font-weight: bold;
+                min-height: 28px;
+            }
+            QPushButton:hover {
+                background-color: #1d4ed8;
+            }
+            QPushButton:pressed {
+                background-color: #1e40af;
+            }
+            QPushButton#secondaryBtn {
+                background-color: #e5e5ea;
+                color: #1e1e2e;
+                border: 1px solid #cccccc;
+            }
+            QPushButton#secondaryBtn:hover {
+                background-color: #d1d1d6;
+            }
+            QTabWidget::pane {
+                border: 1px solid #cccccc;
+                border-radius: 6px;
+                background-color: #ffffff;
+            }
+            QTabBar::tab {
+                background: #e5e5ea;
+                border: 1px solid #cccccc;
+                padding: 8px 16px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                color: #1e1e2e;
+            }
+            QTabBar::tab:selected, QTabBar::tab:hover {
+                background: #ffffff;
+                font-weight: bold;
+                color: #1e1e2e;
+            }
+            QStatusBar {
+                background: #f0f0f5;
+                color: #555555;
             }
         """)
 
@@ -323,6 +433,16 @@ class ShallotTApp(QMainWindow):
         self.check_conn_btn.clicked.connect(self.refresh_ollama_models)
         model_layout.addWidget(self.check_conn_btn)
         og_layout.addLayout(model_layout)
+        
+        # Interface Theme Preference Row
+        theme_layout = QHBoxLayout()
+        theme_layout.addWidget(QLabel("Interface Theme (Thème de l'application) :"))
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(["Dark Theme (Sombre)", "Light Theme (Clair)"])
+        current_theme = "Light Theme (Clair)" if self.config.get("ui_theme", "dark") == "light" else "Dark Theme (Sombre)"
+        self.theme_combo.setCurrentText(current_theme)
+        theme_layout.addWidget(self.theme_combo)
+        og_layout.addLayout(theme_layout)
         
         settings_layout.addWidget(ollama_group)
         
@@ -666,6 +786,14 @@ class ShallotTApp(QMainWindow):
         self.config["shortcut_translate"] = self.shortcut_translate_input.text().strip().lower()
         self.config["shortcut_ocr"] = self.shortcut_ocr_input.text().strip().lower()
         
+        # Save app Theme selection
+        theme_sel = "light" if "light" in self.theme_combo.currentText().lower() else "dark"
+        self.config["ui_theme"] = theme_sel
+        if theme_sel == "light":
+            self.setup_light_theme()
+        else:
+            self.setup_dark_theme()
+            
         save_config(self.config)
         
         # Re-initialize translator

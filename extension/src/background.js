@@ -238,7 +238,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const targetL = stored.targetLang || "French";
 
       const promptContext = `Translate the following text into ${targetL}.`;
-      const fullPrompt = `<start_of_turn>user\nYou are a professional, high-performance translator like DeepL. Translate the text accurately. Preserve the original formatting, tone, and style.\nCRITICAL: Do not write any explanations, summaries, preamble, warning, notes, or code blocks. Just output the translation directly.\n\nInstruction: ${promptContext}\n\nText to translate:\n${request.text}\n<start_of_turn>model\n`;
+      const fullPrompt = `<start_of_turn>user\nYou are a professional, high-performance translator like DeepL. Translate the text accurately. Preserve the original formatting, paragraph breaks, tone, and style.\nCRITICAL: Do not write any explanations, summaries, preamble, warning, notes, or code blocks. Just output the translation directly.\n\nInstruction: ${promptContext}\n\nText to translate:\n${request.text}\n<start_of_turn>model\n`;
 
       let isAborted = false;
       const abortListener = (msg) => {
@@ -473,7 +473,7 @@ function displayInlineTranslationBubble(text) {
       <span id="shallott-close-btn" style="cursor:pointer; padding:2px 6px; font-weight:bold; user-select:none;">✕</span>
     </div>
     <div style="font-style:italic; color:#707a8a; margin-bottom:5px; max-height:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; pointer-events:none;">"${text}"</div>
-    <div id="shallott-bubble-result" style="line-height:1.5; color:#a6e3a1; max-height:180px; overflow-y:auto; word-break:break-word;">Traductions en cours...</div>
+    <div id="shallott-bubble-result" style="line-height:1.5; color:#a6e3a1; max-height:180px; overflow-y:auto; word-break:break-word; white-space:pre-wrap;">Traductions en cours...</div>
     <div style="display:flex; justify-content:flex-end; margin-top:8px; font-size:10px; color:#707a8a; pointer-events:none;">Gemma local API</div>
   `;
 
