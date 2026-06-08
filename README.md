@@ -87,6 +87,11 @@ L'extension navigateur est codée en pure **Javascript Manifest V3**. Elle bypas
 *   **Traduction contextuelle** : Sélectionnez du texte sur n'importe quel site web -> Clic-droit -> `Traduire avec ShallotT Local`. Une magnifique bulle flottante contenant la traduction apparaît sur la page immédiatement !
 *   **Raccourci clavier de sélection** (`Alt+Shift+T`) : Sélectionnez du texte, puis appuyez sur `Alt+Shift+T` pour stocker et traduire directement dans la popup d'extension.
 
+### 💾 Comment installer l'extension de façon permanente et stable (à vie) :
+Pour vous assurer de garder l'extension même après le redémarrage complet de Firefox sans avoir à la recharger temporairement à chaque fois, veuillez consulter notre guide pas à pas complet d'enregistrement : 
+👉 [GUIDE_INSTALLATION_EXTENSION.md](GUIDE_INSTALLATION_EXTENSION.md).
+
+
 ---
 
 ## ⌨️ Raccourcis et Modes Avancés sous Linux (Wayland)
