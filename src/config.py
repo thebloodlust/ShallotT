@@ -9,6 +9,9 @@ DEFAULT_CONFIG = {
     "source_lang": "Auto Detection",
     "target_lang": "French",
     "ui_theme": "dark",
+    "font_size": 13, # Taille de police par défaut
+    "font_family": "Segoe UI", # Police par défaut
+    "dyslexic_mode": False, # Mode malvoyant / dyslexique
     "max_characters": 10000, # Limite par défaut à 10 000 lettres pour optimiser la vitesse de traitement
     "shortcut_translate": "ctrl+c+c",
     "shortcut_ocr": "ctrl+f8"

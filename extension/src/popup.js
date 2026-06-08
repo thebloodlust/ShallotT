@@ -20,6 +20,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let delayTimer;
 
+  // Font adjustments for accessibility & read support
+  function applyPopupFontPreferences(prefs) {
+    let size = prefs.extFontSize || 12;
+    let family = prefs.extFontFamily || "'Segoe UI', system-ui, sans-serif";
+    const isDyslexic = prefs.extDyslexicMode || false;
+
+    if (isDyslexic) {
+      size = Math.max(size, 15);
+      family = "'Comic Sans MS', 'Chalkboard SE', cursive";
+      document.body.classList.add('high-contrast-dyslexic');
+    } else {
+      document.body.classList.remove('high-contrast-dyslexic');
+    }
+
+    srcText.style.fontSize = `${size}px`;
+    srcText.style.fontFamily = family;
+    targetText.style.fontSize = `${size}px`;
+    targetText.style.fontFamily = family;
+  }
+
   // Function to dynamically load Ollama models and populate datalist dropdown suggestions
   function loadOllamaModels(selectedModelValue) {
     const url = ollamaUrl.value.trim().replace(/\/$/, "");
@@ -73,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load saved settings & selections
   chrome.storage.local.get([
-    'ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'srcLang', 'targetLang', 'lastQueryText', 'customContextMenuLang', 'maxCharacters'
+    'ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'srcLang', 'targetLang', 'lastQueryText', 'customContextMenuLang', 'maxCharacters', 'extFontSize', 'extFontFamily', 'extDyslexicMode'
   ], (result) => {
     if (result.ollamaUrl) ollamaUrl.value = result.ollamaUrl;
     if (result.ollamaApiKey) ollamaApiKey.value = result.ollamaApiKey;
@@ -85,6 +105,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (result.maxCharacters) {
       document.getElementById('maxCharacters').value = result.maxCharacters;
     }
+    if (result.extFontSize) {
+      document.getElementById('extFontSize').value = result.extFontSize;
+    }
+    if (result.extFontFamily) {
+      document.getElementById('extFontFamily').value = result.extFontFamily;
+    }
+    if (result.extDyslexicMode !== undefined) {
+      document.getElementById('extDyslexicMode').checked = result.extDyslexicMode;
+    }
+    
+    // Apply font settings load trigger
+    applyPopupFontPreferences(result);
     
     // Load models list
     loadOllamaModels(result.ollamaModel);
@@ -124,13 +156,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Save Config
   saveSettings.addEventListener('click', () => {
+    const fontSizeVal = parseInt(document.getElementById('extFontSize').value, 10) || 12;
+    const fontFamilyVal = document.getElementById('extFontFamily').value;
+    const dyslexicVal = document.getElementById('extDyslexicMode').checked;
+
     chrome.storage.local.set({
       ollamaUrl: ollamaUrl.value.trim(),
       ollamaModel: ollamaModel.value,
       ollamaApiKey: ollamaApiKey.value.trim(),
       customContextMenuLang: document.getElementById('customContextMenuLang').value.trim(),
-      maxCharacters: parseInt(document.getElementById('maxCharacters').value, 10) || 10000
+      maxCharacters: parseInt(document.getElementById('maxCharacters').value, 10) || 10000,
+      extFontSize: fontSizeVal,
+      extFontFamily: fontFamilyVal,
+      extDyslexicMode: dyslexicVal
     }, () => {
+      // Re-apply immediately in popup
+      applyPopupFontPreferences({
+        extFontSize: fontSizeVal,
+        extFontFamily: fontFamilyVal,
+        extDyslexicMode: dyslexicVal
+      });
       showStatus(testStatus, "Configuration sauvegardée !", "success");
       setTimeout(() => { settingsPanel.style.display = 'none'; }, 1000);
     });

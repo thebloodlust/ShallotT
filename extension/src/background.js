@@ -468,6 +468,8 @@ function displayInlineTranslationBubble(text) {
   bubble.style.top = `${Math.min(topPos, window.innerHeight - 200)}px`;
   bubble.style.left = `${Math.min(leftPos, window.innerWidth - 360)}px`;
   bubble.style.width = "340px";
+  bubble.style.height = "auto";
+  bubble.style.minHeight = "120px";
   bubble.style.backgroundColor = "#181c24";
   bubble.style.color = "#c9ceef";
   bubble.style.border = "1px solid #ffaa33";
@@ -478,7 +480,38 @@ function displayInlineTranslationBubble(text) {
   bubble.style.fontFamily = "'Segoe UI', system-ui, sans-serif";
   bubble.style.fontSize = "12px";
 
-  // Bubble internal layout
+  // Make bubble resizable with CSS property
+  bubble.style.resize = "both";
+  bubble.style.overflow = "auto";
+
+  // Bubble internal layout (including checking storage for custom font settings)
+  chrome.storage.local.get(['extFontSize', 'extFontFamily', 'extDyslexicMode'], (storedPrefs) => {
+    let size = storedPrefs.extFontSize || 12;
+    let family = storedPrefs.extFontFamily || "'Segoe UI', system-ui, sans-serif";
+    const isDyslexic = storedPrefs.extDyslexicMode || false;
+
+    if (isDyslexic) {
+      size = Math.max(size, 15);
+      family = "'Comic Sans MS', 'Chalkboard SE', cursive";
+      bubble.style.backgroundColor = "#000000";
+      bubble.style.color = "#ffffff";
+      bubble.style.border = "3px solid #ffff00";
+    }
+
+    bubble.style.fontSize = `${size}px`;
+    bubble.style.fontFamily = family;
+
+    const resultBox = document.getElementById("shallott-bubble-result");
+    if (resultBox) {
+      resultBox.style.fontSize = `${size}px`;
+      resultBox.style.fontFamily = family;
+      if (isDyslexic) {
+        resultBox.style.color = "#ffff00";
+        resultBox.style.fontWeight = "bold";
+      }
+    }
+  });
+
   bubble.innerHTML = `
     <div id="shallott-bubble-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2e3440; padding-bottom:6px; margin-bottom:8px; cursor:move; user-select:none;">
       <span style="font-weight:bold; color:#ffaa33; pointer-events:none;">ShallotT Local Translation 🧅</span>
@@ -501,10 +534,17 @@ function displayInlineTranslationBubble(text) {
 
   header.addEventListener("mousedown", (e) => {
     if (e.button !== 0 || e.target.id === "shallott-close-btn") return;
+    
+    // De-trigger drag on bottom-right corner resize handle clicks
+    const rect = bubble.getBoundingClientRect();
+    const handleThreshold = 18;
+    if (e.clientX > rect.right - handleThreshold && e.clientY > rect.bottom - handleThreshold) {
+      return; 
+    }
+
     isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
-    const rect = bubble.getBoundingClientRect();
     initialLeft = rect.left;
     initialTop = rect.top;
     

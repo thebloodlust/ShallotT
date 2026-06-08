@@ -77,6 +77,7 @@ class ShallotTApp(QMainWindow):
             self.setup_dark_theme()
         
         self.init_ui()
+        self.apply_font_preferences()
         self.setup_system_tray()
         
         # Connect signals
@@ -297,6 +298,39 @@ class ShallotTApp(QMainWindow):
             }
         """)
 
+    def apply_font_preferences(self):
+        """Applies configured font type, size guidelines, and accessibility adjustments."""
+        size = self.config.get("font_size", 13)
+        family = self.config.get("font_family", "Segoe UI")
+        is_dyslexic = self.config.get("dyslexic_mode", False)
+        
+        # High contrast/visually impaired/Dyslexic style overriding font selection
+        if is_dyslexic:
+            # Comic Sans or OpenDyslexic or generic high readability serif/sans-serif
+            family = "Comic Sans MS" if sys.platform != "darwin" else "Chalkboard SE"
+            size = max(16, size) # Force minimum font size of 16 for ease of access
+            
+        font = QFont(family, size)
+        
+        # Apply to text edit fields
+        self.src_text_edit.setFont(font)
+        self.target_text_edit.setFont(font)
+        
+        # Accessibility focus high contrast outline indicator if dyslexic mode activated
+        if is_dyslexic:
+            # Let's adjust text edits slightly for high contrast helper layout
+            theme = self.config.get("ui_theme", "dark")
+            if theme == "light":
+                contrast_css = f"background-color: #ffffff; border: 3px solid #000000; color: #000000; font-family: '{family}'; font-size: {size}px; font-weight: bold; padding: 10px;"
+            else:
+                contrast_css = f"background-color: #000000; border: 3px solid #ffff00; color: #ffffff; font-family: '{family}'; font-size: {size}px; font-weight: bold; padding: 10px;"
+            self.src_text_edit.setStyleSheet(contrast_css)
+            self.target_text_edit.setStyleSheet(contrast_css)
+        else:
+            # Restore standard styles
+            self.src_text_edit.setStyleSheet("")
+            self.target_text_edit.setStyleSheet("")
+
     def init_ui(self):
         # Central Widget & Tab system
         central_widget = QWidget()
@@ -454,7 +488,36 @@ class ShallotTApp(QMainWindow):
         char_limit_layout.addWidget(self.char_limit_spin)
         og_layout.addLayout(char_limit_layout)
         
+        # Font Configuration group
+        font_group = QGroupBox("Reading & Font Preferences (Options de lecture)")
+        fg_layout = QVBoxLayout(font_group)
+        
+        f_row = QHBoxLayout()
+        f_row.addWidget(QLabel("Font Family (Police) :"))
+        self.font_family_combo = QComboBox()
+        self.font_family_combo.addItems([
+            "Segoe UI", "Arial", "Calibri", "Comic Sans MS", "Courier New", "Verdana", "Times New Roman"
+        ])
+        self.font_family_combo.setCurrentText(self.config.get("font_family", "Segoe UI"))
+        f_row.addWidget(self.font_family_combo)
+        
+        f_row.addWidget(QLabel("Font Size (Taille) :"))
+        self.font_size_spin = QSpinBox()
+        self.font_size_spin.setRange(8, 48)
+        self.font_size_spin.setValue(self.config.get("font_size", 13))
+        f_row.addWidget(self.font_size_spin)
+        fg_layout.addLayout(f_row)
+        
+        # Visually Impaired / High Contrast / Dyslexic checkbox
+        accessibility_row = QHBoxLayout()
+        self.dyslexic_cb = QCheckBox("High Contrast / Visually Impaired Large Font (Mode Malvoyant - Facilité de lecture)")
+        self.dyslexic_cb.setDescription = "Forces a thick, highly-legible 16pt font with high-contrast outlines to read easily."
+        self.dyslexic_cb.setChecked(self.config.get("dyslexic_mode", False))
+        accessibility_row.addWidget(self.dyslexic_cb)
+        fg_layout.addLayout(accessibility_row)
+        
         settings_layout.addWidget(ollama_group)
+        settings_layout.addWidget(font_group)
         
         # Shortcuts Info & Customization
         shortcuts_group = QGroupBox("Keyboard Shortcuts (Raccourcis globaux)")
@@ -806,6 +869,12 @@ class ShallotTApp(QMainWindow):
         
         # Save max characters limit
         self.config["max_characters"] = self.char_limit_spin.value()
+        
+        # Save Font Preferences
+        self.config["font_family"] = self.font_family_combo.currentText()
+        self.config["font_size"] = self.font_size_spin.value()
+        self.config["dyslexic_mode"] = self.dyslexic_cb.isChecked()
+        self.apply_font_preferences()
         
         # Save app Theme selection
         theme_sel = "light" if "light" in self.theme_combo.currentText().lower() else "dark"

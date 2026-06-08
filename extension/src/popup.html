@@ -24,6 +24,27 @@
       box-sizing: border-box;
       overflow: hidden;
     }
+
+    body.high-contrast-dyslexic {
+      --bg-color: #000000 !important;
+      --card-bg: #111111 !important;
+      --text-color: #ffffff !important;
+      --text-muted: #e0e0e0 !important;
+      --accent-color: #ffff00 !important;
+      --accent-hover: #ffea00 !important;
+      --border-color: #ffffff !important;
+      --input-bg: #000000 !important;
+    }
+
+    /* Resizable WebExtension popup support */
+    html {
+      resize: both;
+      overflow: auto;
+      min-width: 400px;
+      min-height: 450px;
+      max-width: 900px;
+      max-height: 900px;
+    }
     
     header {
       display: flex;
@@ -278,6 +299,26 @@
     <div class="form-group">
       <label for="maxCharacters">Limite de lettres max :</label>
       <input type="number" id="maxCharacters" value="10000" min="100" max="1000000" step="1000">
+    </div>
+    <div class="form-group">
+      <label for="extFontSize">Taille de police (px) :</label>
+      <input type="number" id="extFontSize" value="12" min="8" max="40" step="1">
+    </div>
+    <div class="form-group">
+      <label for="extFontFamily">Police (Type) :</label>
+      <select id="extFontFamily">
+        <option value="'Segoe UI', system-ui, sans-serif">Segoe UI (Default)</option>
+        <option value="Arial, sans-serif">Arial</option>
+        <option value="'Comic Sans MS', cursive">Comic Sans MS (Dyslexic friendly)</option>
+        <option value="'Courier New', monospace">Courier New</option>
+        <option value="Georgia, serif">Georgia</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label style="display:flex; align-items:center; gap:6px;">
+        <input type="checkbox" id="extDyslexicMode">
+        <span>Mode Malvoyant (Thème contrasté et gros caractères)</span>
+      </label>
     </div>
     <div style="display: flex; gap: 6px; margin-top: 10px;">
       <button class="secondary" id="saveSettings" style="flex: 1; padding: 4px;">Sauvegarder</button>
