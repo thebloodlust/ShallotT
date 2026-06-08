@@ -93,8 +93,14 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 function normalizeUrl(url) {
-  let cleaned = (url || "http://localhost:11434").trim().replace(/\/$/, "");
+  let cleaned = (url || "http://localhost:11434").trim();
   if (!cleaned) return "http://localhost:11434";
+  
+  // Strip common Ollama API paths or trailing slashes in case copy-pasted
+  cleaned = cleaned.replace(/\/api\/tags\/?$/i, "");
+  cleaned = cleaned.replace(/\/api\/generate\/?$/i, "");
+  cleaned = cleaned.replace(/\/api\/?$/i, "");
+  cleaned = cleaned.replace(/\/$/, "");
   
   if (!/^https?:\/\//i.test(cleaned)) {
     cleaned = "http://" + cleaned;
@@ -102,17 +108,24 @@ function normalizeUrl(url) {
   
   try {
     const parse = new URL(cleaned);
-    if (!parse.port && parse.hostname !== "localhost" && !parse.hostname.includes(".")) {
-      cleaned = cleaned + ":11434";
-    } else if (!parse.port && /^[0-9.]+$/.test(parse.hostname)) {
-      cleaned = cleaned + ":11434";
+    let protocol = parse.protocol || "http:";
+    let hostname = parse.hostname;
+    let port = parse.port;
+    
+    if (!port) {
+      if (hostname.includes(":")) {
+        return `${protocol}//${hostname}`;
+      } else {
+        return `${protocol}//${hostname}:11434`;
+      }
     }
+    return `${protocol}//${hostname}:${port}`;
   } catch (e) {
     if (!cleaned.includes(":", 6)) {
       cleaned = cleaned + ":11434";
     }
+    return cleaned;
   }
-  return cleaned;
 }
 
 // Listener to execute secure extension-level fetch requests to bypass webpage CORS/Mixed-Content limitations

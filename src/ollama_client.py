@@ -1,11 +1,48 @@
 import requests
 import json
+import urllib.parse
+import re
 
 class OllamaTranslator:
     def __init__(self, base_url="http://localhost:11434", model="gemma2:9b", api_key=""):
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url
         self.model = model
         self.api_key = api_key
+
+    @property
+    def base_url(self):
+        return self._base_url
+
+    @base_url.setter
+    def base_url(self, value):
+        self._base_url = self._normalize_url(value)
+
+    def _normalize_url(self, url):
+        cleaned = (url or "http://localhost:11434").strip()
+        if not cleaned:
+            return "http://localhost:11434"
+            
+        # Strip common Ollama API paths or trailing slashes
+        cleaned = re.sub(r'/api/tags/?$', '', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'/api/generate/?$', '', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'/api/?$', '', cleaned, flags=re.IGNORECASE)
+        cleaned = cleaned.rstrip('/')
+        
+        # Ensure scheme
+        if not cleaned.lower().startswith(('http://', 'https://')):
+            cleaned = "http://" + cleaned
+            
+        try:
+            parsed = urllib.parse.urlparse(cleaned)
+            # Add port 11434 if no port is present on the netloc (hostname or IP)
+            if ':' not in parsed.netloc:
+                cleaned = f"{parsed.scheme}://{parsed.netloc}:11434"
+            else:
+                cleaned = f"{parsed.scheme}://{parsed.netloc}"
+        except Exception:
+            if ':' not in cleaned[6:]:
+                cleaned = cleaned + ":11434"
+        return cleaned
 
     def _get_headers(self):
         headers = {
