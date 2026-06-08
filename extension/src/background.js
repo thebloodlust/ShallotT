@@ -141,9 +141,6 @@ chrome.runtime.onInstalled.addListener(() => {
     if (!result.targetLang) chrome.storage.local.set({ targetLang: "French" });
   });
 });
-    if (!result.targetLang) chrome.storage.local.set({ targetLang: "French" });
-  });
-});
 
 function normalizeUrl(url) {
   let cleaned = (url || "http://localhost:11434").trim();
