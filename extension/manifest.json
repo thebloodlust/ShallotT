@@ -7,6 +7,8 @@
     "activeTab",
     "storage",
     "contextMenus",
+    "webRequest",
+    "webRequestBlocking",
     "http://localhost:11434/*",
     "http://127.0.0.1:11434/*",
     "http://192.168.1.12:11434/*",
@@ -23,7 +25,7 @@
   },
   "background": {
     "scripts": ["src/background.js"],
-    "persistent": false
+    "persistent": true
   },
   "commands": {
     "_execute_browser_action": {

@@ -1,5 +1,77 @@
 // Background service worker for Chrome/Firefox Extension
 
+// Intercept and bypass CORS both at Request (Ollama check) and Response (Browser check) levels
+if (chrome.webRequest) {
+  // 1. Overwrite Origin / Referer of requests going to Ollama to make it believe we are a simple local curl/localhost call
+  chrome.webRequest.onBeforeSendHeaders.addListener(
+    function(details) {
+      let isOllamaMatch = details.url.includes("11434") || details.url.includes("/api/generate") || details.url.includes("/api/tags");
+      if (isOllamaMatch) {
+        let headers = details.requestHeaders;
+        let originIndex = -1;
+        let refererIndex = -1;
+        for (let i = 0; i < headers.length; i++) {
+          let nameLower = headers[i].name.toLowerCase();
+          if (nameLower === "origin") originIndex = i;
+          if (nameLower === "referer") refererIndex = i;
+        }
+
+        // Change or insert the Origin to http://localhost:11434 to make Ollama happy (it passes all checks)
+        if (originIndex !== -1) {
+          headers[originIndex].value = "http://localhost:11434";
+        } else {
+          headers.push({ name: "Origin", value: "http://localhost:11434" });
+        }
+
+        if (refererIndex !== -1) {
+          headers[refererIndex].value = "http://localhost:11434/";
+        } else {
+          headers.push({ name: "Referer", value: "http://localhost:11434/" });
+        }
+
+        return { requestHeaders: headers };
+      }
+    },
+    { urls: ["<all_urls>"] },
+    ["blocking", "requestHeaders"]
+  );
+
+  // 2. Allow everything at the browser inspection level by injecting wildcard Access-Control-Allow-Origin headers
+  chrome.webRequest.onHeadersReceived.addListener(
+    function(details) {
+      let isOllamaMatch = details.url.includes("11434") || details.url.includes("/api/generate") || details.url.includes("/api/tags");
+      if (isOllamaMatch) {
+        let headers = details.responseHeaders;
+        let hasAcao = false;
+        let hasAcah = false;
+        
+        for (let i = 0; i < headers.length; i++) {
+          let nameLower = headers[i].name.toLowerCase();
+          if (nameLower === "access-control-allow-origin") {
+            headers[i].value = "*";
+            hasAcao = true;
+          }
+          if (nameLower === "access-control-allow-headers") {
+            headers[i].value = "Authorization, Content-Type, User-Agent, Accept";
+            hasAcah = true;
+          }
+        }
+
+        if (!hasAcao) {
+          headers.push({ name: "Access-Control-Allow-Origin", value: "*" });
+        }
+        if (!hasAcah) {
+          headers.push({ name: "Access-Control-Allow-Headers", value: "Authorization, Content-Type, User-Agent, Accept" });
+        }
+
+        return { responseHeaders: headers };
+      }
+    },
+    { urls: ["<all_urls>"] },
+    ["blocking", "responseHeaders"]
+  );
+}
+
 // Default host configurations
 const DEFAULT_URL = "http://localhost:11434";
 const DEFAULT_MODEL = "gemma:latest";
