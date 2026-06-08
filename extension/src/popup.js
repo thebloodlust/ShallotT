@@ -20,19 +20,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let delayTimer;
 
-  // Function to dynamically load Ollama models and populate select dropdown
+  // Function to dynamically load Ollama models and populate datalist dropdown suggestions
   function loadOllamaModels(selectedModelValue) {
     const url = ollamaUrl.value.trim().replace(/\/$/, "");
     const key = ollamaApiKey.value.trim();
-    
-    // Clear and add a loading/temporary option
-    ollamaModel.innerHTML = "";
-    const activeModel = selectedModelValue || "gemma:latest";
-    const tempOpt = document.createElement("option");
-    tempOpt.value = activeModel;
-    tempOpt.textContent = activeModel + " (sauvegardé)";
-    tempOpt.selected = true;
-    ollamaModel.appendChild(tempOpt);
+    const modelsList = document.getElementById("modelsList");
+    if (!modelsList) return;
+
+    if (selectedModelValue) {
+      ollamaModel.value = selectedModelValue;
+    }
 
     // Call background service worker to fetch models securely (cross-origin bypassed)
     chrome.runtime.sendMessage({
@@ -46,45 +43,29 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (response && response.success && response.models && response.models.length > 0) {
-        ollamaModel.innerHTML = "";
-        let found = false;
-        
-        let modelToSelect = activeModel;
-        if (response.models.includes(activeModel)) {
-          found = true;
-        }
+        modelsList.innerHTML = "";
+        response.models.forEach(modelName => {
+          const opt = document.createElement("option");
+          opt.value = modelName;
+          modelsList.appendChild(opt);
+        });
+
+        const activeModel = ollamaModel.value.trim();
+        let found = response.models.includes(activeModel);
 
         // Intelligent auto-detection of the best model (e.g. gemma4, gemma2, etc.)
         if (!found) {
           const gemmaModel = response.models.find(m => m.toLowerCase().includes("gemma"));
           if (gemmaModel) {
-            modelToSelect = gemmaModel;
-            found = true;
+            ollamaModel.value = gemmaModel;
+            chrome.storage.local.set({ ollamaModel: gemmaModel });
           } else {
             const qwenModel = response.models.find(m => m.toLowerCase().includes("qwen"));
             if (qwenModel) {
-              modelToSelect = qwenModel;
-              found = true;
-            } else {
-              modelToSelect = response.models[0];
-              found = true;
+              ollamaModel.value = qwenModel;
+              chrome.storage.local.set({ ollamaModel: qwenModel });
             }
           }
-        }
-
-        response.models.forEach(modelName => {
-          const opt = document.createElement("option");
-          opt.value = modelName;
-          opt.textContent = modelName;
-          if (modelName === modelToSelect) {
-            opt.selected = true;
-          }
-          ollamaModel.appendChild(opt);
-        });
-
-        // Automatically save the auto-detected model so translated texts work out of the box
-        if (modelToSelect !== activeModel) {
-          chrome.storage.local.set({ ollamaModel: modelToSelect });
         }
       }
     });
