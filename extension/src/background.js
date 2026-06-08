@@ -137,16 +137,31 @@ function rebuildContextMenus(langString) {
       "russe": "Russian", "russian": "Russian"
     };
 
+    // Flag mapping dictionary based on lowercase names
+    const flagMap = {
+      "french": "🇫🇷", "français": "🇫🇷", "francais": "🇫🇷",
+      "english": "🇬🇧", "anglais": "🇬🇧",
+      "spanish": "🇪🇸", "espagnol": "🇪🇸",
+      "german": "🇩🇪", "allemand": "🇩🇪",
+      "italian": "🇮🇹", "italien": "🇮🇹",
+      "portuguese": "🇵🇹", "portugais": "🇵🇹",
+      "chinese": "🇨🇳", "chinois": "🇨🇳",
+      "japanese": "🇯🇵", "japonais": "🇯🇵",
+      "russian": "🇷🇺", "russe": "🇷🇺"
+    };
+
     list.forEach(item => {
       if (!item) return;
       const normalized = item.charAt(0).toUpperCase() + item.slice(1);
       const lookVal = item.toLowerCase();
       const mappedLang = langMap[lookVal] || normalized;
+      const flag = flagMap[lookVal] || "";
+      const displayTitle = flag ? `Traduire en ${normalized} ${flag}` : `Traduire en ${normalized}`;
 
       chrome.contextMenus.create({
         id: "shallott-lang-" + mappedLang,
         parentId: "shallott-translate-selection",
-        title: `Traduire en ${normalized}`,
+        title: displayTitle,
         contexts: ["selection"]
       });
     });
