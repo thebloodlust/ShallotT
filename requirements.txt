@@ -1,0 +1,6 @@
+requests>=2.31
+pynput>=1.7
+pyperclip>=1.8
+Pillow>=10.0
+pytesseract>=0.3.10
+pystray>=0.19

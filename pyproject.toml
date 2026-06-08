@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shallott"
+version = "0.1.0"
+description = "AI-powered translation plugin with keyboard shortcuts – powered by a remote Ollama instance."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["translation", "ollama", "hotkey", "ocr", "wireguard", "tailscale"]
+
+dependencies = [
+    "requests>=2.31",
+    "pynput>=1.7",
+    "pyperclip>=1.8",
+    "Pillow>=10.0",
+    "pytesseract>=0.3.10",
+    "pystray>=0.19",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-mock>=3",
+    "responses>=0.25",
+]
+
+[project.scripts]
+shallott = "shallott.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["shallott*"]

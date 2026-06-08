@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ShallotT – Settings</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      max-width: 520px;
+      margin: 32px auto;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      padding: 24px;
+      border-radius: 10px;
+    }
+    h1 { color: #89b4fa; margin-bottom: 20px; font-size: 20px; }
+    label { display: block; margin-bottom: 4px; color: #a6adc8; font-size: 13px; }
+    input, select {
+      width: 100%;
+      padding: 8px 10px;
+      background: #313244;
+      color: #cdd6f4;
+      border: 1px solid #45475a;
+      border-radius: 6px;
+      font-size: 14px;
+      margin-bottom: 14px;
+    }
+    input:focus, select:focus { outline: 2px solid #89b4fa; }
+    .hint {
+      font-size: 11px;
+      color: #6c7086;
+      margin-top: -10px;
+      margin-bottom: 14px;
+    }
+    button {
+      padding: 10px 20px;
+      background: #89b4fa;
+      color: #1e1e2e;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover { background: #b4d0f7; }
+    #status { margin-left: 12px; color: #a6e3a1; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>🧅 ShallotT Settings</h1>
+
+  <label for="ollamaHost">Ollama Host URL</label>
+  <input id="ollamaHost" type="url" placeholder="http://192.168.1.100:11434">
+  <p class="hint">Your Ollama server address. Works over VPN (WireGuard / Tailscale).</p>
+
+  <label for="model">Model</label>
+  <input id="model" type="text" placeholder="gemma3:8b-instruct-q4_K_M">
+  <p class="hint">Ollama model tag. Pull it first: <code>ollama pull gemma3:8b-instruct-q4_K_M</code></p>
+
+  <label for="targetLanguage">Target Language</label>
+  <input id="targetLanguage" type="text" placeholder="en">
+  <p class="hint">Language code or name (e.g. en, fr, German, 日本語).</p>
+
+  <label for="timeout">Request Timeout (ms)</label>
+  <input id="timeout" type="number" min="5000" step="1000" placeholder="60000">
+
+  <button id="save">Save settings</button>
+  <span id="status"></span>
+
+  <script src="options.js"></script>
+</body>
+</html>
