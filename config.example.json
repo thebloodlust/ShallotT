@@ -1,0 +1,24 @@
+{
+  "ollama": {
+    "host": "http://192.168.1.100:11434",
+    "model": "gemma3:8b-instruct-q4_K_M",
+    "timeout": 60,
+    "verify_ssl": true
+  },
+  "hotkeys": {
+    "translate_clipboard": "<ctrl>+c+c",
+    "translate_ocr": "<ctrl>+<f8>"
+  },
+  "translation": {
+    "target_language": "en",
+    "source_language": "auto"
+  },
+  "ocr": {
+    "tesseract_cmd": null,
+    "lang": "eng+fra+deu+spa+jpn+chi_sim"
+  },
+  "ui": {
+    "overlay_duration": 8,
+    "overlay_position": "bottom-right"
+  }
+}
