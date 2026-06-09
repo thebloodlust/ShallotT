@@ -808,17 +808,20 @@ class ShallotTApp(QMainWindow):
         target_lang = self.target_lang_box.currentText()
         
         # Smart target language auto-swap if source text matches target language
-        detected_lang = self.detect_text_language(text)
-        if detected_lang == "English" and target_lang == "English":
-            self.target_lang_box.blockSignals(True)
-            self.target_lang_box.setCurrentText("French")
-            self.target_lang_box.blockSignals(False)
-            target_lang = "French"
-        elif detected_lang == "French" and target_lang == "French":
-            self.target_lang_box.blockSignals(True)
-            self.target_lang_box.setCurrentText("English")
-            self.target_lang_box.blockSignals(False)
-            target_lang = "English"
+        # ONLY swap them if the source language box is set to "Auto Detection"
+        # and the user hasn't explicitly set the same language. This prevents the combobox snapping bugs.
+        if src_lang == "Auto Detection":
+            detected_lang = self.detect_text_language(text)
+            if detected_lang == "English" and target_lang == "English":
+                self.target_lang_box.blockSignals(True)
+                self.target_lang_box.setCurrentText("French")
+                self.target_lang_box.blockSignals(False)
+                target_lang = "French"
+            elif detected_lang == "French" and target_lang == "French":
+                self.target_lang_box.blockSignals(True)
+                self.target_lang_box.setCurrentText("English")
+                self.target_lang_box.blockSignals(False)
+                target_lang = "English"
         
         self.status_lbl.setText("Decoding / Connecting to Ollama...")
         self.statusBar().showMessage("Translating...")
