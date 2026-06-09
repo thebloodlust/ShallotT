@@ -20,7 +20,7 @@ def build_windows_exe():
         print("PyInstaller is already installed.")
     except ImportError:
         print("Installing PyInstaller...")
-        run_command("pip install pyinstaller")
+        run_command(f'"{sys.executable}" -m pip install pyinstaller')
 
     # 2. Build directories structure
     dist_dir = "dist"
@@ -39,7 +39,7 @@ def build_windows_exe():
     add_data_param = "src;src" if os.name == 'nt' else "src:src"
     
     pyinstaller_cmd = (
-        f"pyinstaller --onefile --windowed "
+        f'"{sys.executable}" -m PyInstaller --onefile --windowed '
         f"--add-data \"{add_data_param}\" "
         f"--name \"ShallotT\" "
         f"main.py"
