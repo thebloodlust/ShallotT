@@ -1,0 +1,50 @@
+{
+  "manifest_version": 2,
+  "name": "ShallotT - DeepL AI Local",
+  "version": "1.0.0",
+  "description": "Equivalent DeepL local et ultra-rapide utilisant Ollama et Gemma pour traduire instantanément.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "contextMenus",
+    "webRequest",
+    "webRequestBlocking",
+    "http://localhost:11434/*",
+    "http://127.0.0.1:11434/*",
+    "http://192.168.1.12:11434/*",
+    "<all_urls>"
+  ],
+  "browser_action": {
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "scripts": ["src/background.js"],
+    "persistent": true
+  },
+  "commands": {
+    "_execute_browser_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y"
+      },
+      "description": "Ouvrir la fenêtre de traduction ShallotT"
+    },
+    "translate-selection": {
+      "suggested_key": {
+        "default": "Alt+Shift+T"
+      },
+      "description": "Traduire le texte sélectionné"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
