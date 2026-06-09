@@ -4,7 +4,12 @@
   "version": "1.0.0",
   "browser_specific_settings": {
     "gecko": {
-      "id": "shallott@local-ai.translator"
+      "id": "shallott@local-ai.translator",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
     }
   },
   "description": "Traducteur local et ultra-rapide alimenté avec l'IA utilisant Ollama et Gemma pour traduire instantanément.",
