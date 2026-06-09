@@ -539,6 +539,16 @@ class ShallotTApp(QMainWindow):
         ocr_sh_layout.addWidget(self.shortcut_ocr_input)
         sg_layout.addLayout(ocr_sh_layout)
         
+        # OCR Engine selection
+        ocr_eng_layout = QHBoxLayout()
+        ocr_eng_layout.addWidget(QLabel("OCR Engine (Moteur de reconnaissance) :"))
+        self.ocr_engine_combo = QComboBox()
+        self.ocr_engine_combo.addItems(["Tesseract OCR (Interne)", "PowerToys Text Extractor (Windows)"])
+        current_eng = "PowerToys Text Extractor (Windows)" if self.config.get("ocr_engine", "tesseract") == "powertoys" else "Tesseract OCR (Interne)"
+        self.ocr_engine_combo.setCurrentText(current_eng)
+        ocr_eng_layout.addWidget(self.ocr_engine_combo)
+        sg_layout.addLayout(ocr_eng_layout)
+        
         sg_layout.addWidget(QLabel("<i>Tips: Use <b>ctrl+c+c</b> for double-C press gesture. Other shortcuts can be formatted like <b>ctrl+alt+t</b>.</i>"))
         sg_layout.addWidget(QLabel("<i>Note: On Linux, if Wayland blocks background shortcuts, register them in your desktop hotkey settings using application flags <b>--translate</b> or <b>--ocr</b>.</i>"))
         settings_layout.addWidget(shortcuts_group)
@@ -866,6 +876,7 @@ class ShallotTApp(QMainWindow):
         # Save custom shortcuts
         self.config["shortcut_translate"] = self.shortcut_translate_input.text().strip().lower()
         self.config["shortcut_ocr"] = self.shortcut_ocr_input.text().strip().lower()
+        self.config["ocr_engine"] = "powertoys" if "powertoys" in self.ocr_engine_combo.currentText().lower() else "tesseract"
         
         # Save max characters limit
         self.config["max_characters"] = self.char_limit_spin.value()
@@ -933,4 +944,4 @@ class ShallotTApp(QMainWindow):
                     self.translate_text()
                     
         # Launch capture overlay
-        run_ocr_capture(on_ocr_text_ready)
+        run_ocr_capture(on_ocr_text_ready, self.config.get("ocr_engine", "tesseract"))

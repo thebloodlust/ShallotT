@@ -1,6 +1,8 @@
 import os
 import sys
-from PyQt6.QtCore import Qt, QRect, QPoint, pyqtSignal
+import time
+import pyperclip
+from PyQt6.QtCore import Qt, QRect, QPoint, pyqtSignal, QTimer
 from PyQt6.QtWidgets import QWidget, QApplication
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPixmap, QScreen
 from PIL import Image
@@ -154,13 +156,63 @@ class ScreenCaptureOverlay(QWidget):
             self.text_captured.emit(error_msg)
 
 
-def run_ocr_capture(on_text_ready_callback):
+class PowerToysOCRHelper:
+    def __init__(self, on_text_ready):
+        self.on_text_ready = on_text_ready
+        try:
+            self.initial_text = pyperclip.paste()
+        except Exception:
+            self.initial_text = ""
+        self.timer = QTimer()
+        self.timer.setInterval(250)
+        self.timer.timeout.connect(self.check_clipboard)
+        self.start_time = time.time()
+        
+    def start(self):
+        # Trigger the Windows PowerToys shortcut Win+Shift+T
+        try:
+            from pynput.keyboard import Key, Controller
+            kb = Controller()
+            kb.press(Key.cmd)
+            kb.press(Key.shift)
+            kb.press('t')
+            kb.release('t')
+            kb.release(Key.shift)
+            kb.release(Key.cmd)
+        except Exception as e:
+            print(f"Error simulating keypresses: {e}")
+            
+        self.timer.start()
+        
+    def check_clipboard(self):
+        if time.time() - self.start_time > 15: # Timeout 15s
+            self.timer.stop()
+            return
+            
+        try:
+            current_text = pyperclip.paste()
+            if current_text != self.initial_text:
+                if current_text and current_text.strip():
+                    self.timer.stop()
+                    self.on_text_ready(current_text)
+        except Exception:
+            pass
+
+
+def run_ocr_capture(on_text_ready_callback, engine="tesseract"):
     """
-    Launches the full-screen selection overlay.
+    Launches the configured OCR engine (native PyQt Screen selection or PowerToys).
     """
-    overlay = ScreenCaptureOverlay()
-    overlay.text_captured.connect(on_text_ready_callback)
-    overlay.show()
-    # Keep reference to avoid garbage collection
-    global _overlay_reference
-    _overlay_reference = overlay
+    import platform
+    if engine == "powertoys" and platform.system() == "Windows":
+        pt_helper = PowerToysOCRHelper(on_text_ready_callback)
+        pt_helper.start()
+        global _pt_helper_reference
+        _pt_helper_reference = pt_helper
+    else:
+        overlay = ScreenCaptureOverlay()
+        overlay.text_captured.connect(on_text_ready_callback)
+        overlay.show()
+        # Keep reference to avoid garbage collection
+        global _overlay_reference
+        _overlay_reference = overlay
