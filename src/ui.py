@@ -913,6 +913,21 @@ class ShallotTApp(QMainWindow):
         try:
             from pynput.keyboard import Key, Controller
             kb = Controller()
+            # Release any physically held modifiers/keys of our shortcut to prevent conflicts
+            for modifier in [Key.ctrl, Key.ctrl_l, Key.ctrl_r, Key.shift, Key.shift_l, Key.shift_r, Key.alt, Key.alt_l, Key.alt_r, Key.cmd, Key.cmd_l, Key.cmd_r]:
+                try:
+                    kb.release(modifier)
+                except Exception:
+                    pass
+            for i in range(1, 13):
+                try:
+                    f_key = getattr(Key, f'f{i}', None)
+                    if f_key:
+                        kb.release(f_key)
+                except Exception:
+                    pass
+            
+            # Now safely perform the copy simulation Ctrl+C
             kb.press(Key.ctrl)
             kb.press('c')
             kb.release('c')

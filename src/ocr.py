@@ -172,6 +172,21 @@ class PowerToysOCRHelper:
         try:
             from pynput.keyboard import Key, Controller
             kb = Controller()
+            
+            # Release physical modifier keys first to prevent shortcuts contamination!
+            for modifier in [Key.ctrl, Key.ctrl_l, Key.ctrl_r, Key.shift, Key.shift_l, Key.shift_r, Key.alt, Key.alt_l, Key.alt_r, Key.cmd, Key.cmd_l, Key.cmd_r]:
+                try:
+                    kb.release(modifier)
+                except Exception:
+                    pass
+            for i in range(1, 13):
+                try:
+                    f_key = getattr(Key, f'f{i}', None)
+                    if f_key:
+                        kb.release(f_key)
+                except Exception:
+                    pass
+            
             kb.press(Key.cmd)
             kb.press(Key.shift)
             kb.press('t')
