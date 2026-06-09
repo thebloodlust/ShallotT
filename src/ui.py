@@ -46,6 +46,7 @@ class ShallotTApp(QMainWindow):
     translation_failed = pyqtSignal(str)
     trigger_translate_shortcut = pyqtSignal()
     trigger_ocr_shortcut = pyqtSignal()
+    connection_checked = pyqtSignal(bool, list)
     
     def __init__(self):
         super().__init__()
@@ -85,6 +86,7 @@ class ShallotTApp(QMainWindow):
         self.translation_failed.connect(self.on_translation_error)
         self.trigger_translate_shortcut.connect(self.handle_global_translate_shortcut)
         self.trigger_ocr_shortcut.connect(self.handle_global_ocr_shortcut)
+        self.connection_checked.connect(self.on_connection_checked)
         
         # Keep loading models in background
         QTimer.singleShot(100, self.refresh_ollama_models)
@@ -823,8 +825,7 @@ class ShallotTApp(QMainWindow):
         """Fetch available models from the Ollama server."""
         self.check_conn_btn.setText("Connecting...")
         
-        # Perform check in a safe non-blocking way using QTimer / Threading if required, 
-        # but a simple thread is cleaner.
+        # Perform check in a safe non-blocking way using QThread/threading + PyQt Signals
         def fetch_task():
             # Update translator settings first
             url = self.url_input.text().strip()
@@ -833,30 +834,29 @@ class ShallotTApp(QMainWindow):
             self.translator.api_key = key
             
             connected, models = self.translator.check_connection()
-            
-            def update_ui():
-                if connected:
-                    current_model = self.config["ollama_model"]
-                    self.model_combo.clear()
-                    
-                    # Fill available models
-                    for m in models:
-                        self.model_combo.addItem(m)
-                    
-                    if current_model in models:
-                        self.model_combo.setCurrentText(current_model)
-                    elif models:
-                        self.model_combo.setCurrentIndex(0)
-                        
-                    self.statusBar().showMessage(f"Connected to Ollama! Found {len(models)} models.", 4000)
-                    self.check_conn_btn.setText("Connected ✓")
-                else:
-                    self.statusBar().showMessage("Could not connect to Ollama server.", 4000)
-                    self.check_conn_btn.setText("Failed ✗")
-            
-            QTimer.singleShot(0, update_ui)
+            self.connection_checked.emit(connected, models)
             
         threading.Thread(target=fetch_task, daemon=True).start()
+
+    def on_connection_checked(self, connected, models):
+        if connected:
+            current_model = self.config["ollama_model"]
+            self.model_combo.clear()
+            
+            # Fill available models
+            for m in models:
+                self.model_combo.addItem(m)
+            
+            if current_model in models:
+                self.model_combo.setCurrentText(current_model)
+            elif models:
+                self.model_combo.setCurrentIndex(0)
+                
+            self.statusBar().showMessage(f"Connected to Ollama! Found {len(models)} models.", 4000)
+            self.check_conn_btn.setText("Connected ✓")
+        else:
+            self.statusBar().showMessage("Could not connect to Ollama server.", 4000)
+            self.check_conn_btn.setText("Failed ✗")
 
     def save_app_settings(self):
         url = self.url_input.text().strip()
