@@ -279,6 +279,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 model: model,
                 prompt: fullPrompt,
                 stream: false,
+                keep_alive: "60m", // Keep model in memory for 60 minutes
                 // Use optimal robust parameters matching PyQt6 app to prevent Empty Response
                 options: { temperature: 0.2, top_p: 0.9, num_predict: 2048 }
               })

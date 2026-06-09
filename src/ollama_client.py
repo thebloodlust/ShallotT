@@ -77,6 +77,7 @@ class OllamaTranslator:
             "model": self.model,
             "prompt": full_prompt,
             "stream": False,
+            "keep_alive": "60m",  # Keep model in memory for 60 minutes to avoid Ollama cold-start loading time
             "options": {
                 "temperature": 0.2,
                 "top_p": 0.9,

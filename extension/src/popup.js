@@ -223,6 +223,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Open shortcuts settings page
+  const openShortcutsBtn = document.getElementById('openShortcutsBtn');
+  if (openShortcutsBtn) {
+    openShortcutsBtn.addEventListener('click', () => {
+      chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+    });
+  }
+
   // Manual trigger button
   translateBtn.addEventListener('click', () => {
     clearTimeout(delayTimer);
