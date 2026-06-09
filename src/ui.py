@@ -907,11 +907,21 @@ class ShallotTApp(QMainWindow):
 
     def handle_global_translate_shortcut(self):
         """
-        Called when Ctrl+C+C is detected.
-        Reads selected text from clipboard, opens window and translates immediately!
+        Reads selected text from clipboard (simulating a copy action if needed),
+        opens window and translates immediately!
         """
-        # Sleep slightly to let the clipboard copy event complete
-        QTimer.singleShot(80, self._process_clipboard_translation)
+        try:
+            from pynput.keyboard import Key, Controller
+            kb = Controller()
+            kb.press(Key.ctrl)
+            kb.press('c')
+            kb.release('c')
+            kb.release(Key.ctrl)
+        except Exception as e:
+            print(f"Error simulating copy keypress check: {e}")
+            
+        # Sleep slightly longer to let the clipboard copy event write and complete safely
+        QTimer.singleShot(150, self._process_clipboard_translation)
 
     def _process_clipboard_translation(self):
         try:
