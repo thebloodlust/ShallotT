@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (response && response.success && response.models && response.models.length > 0) {
-        modelsList.innerHTML = "";
+        modelsList.textContent = "";
         response.models.forEach(modelName => {
           const opt = document.createElement("option");
           opt.value = modelName;

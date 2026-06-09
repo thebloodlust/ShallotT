@@ -2,6 +2,11 @@
   "manifest_version": 2,
   "name": "ShallotT - Traducteur IA Local",
   "version": "1.0.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "shallott@local-ai.translator"
+    }
+  },
   "description": "Traducteur local et ultra-rapide alimenté avec l'IA utilisant Ollama et Gemma pour traduire instantanément.",
   "permissions": [
     "activeTab",

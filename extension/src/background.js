@@ -473,6 +473,112 @@ function displayInlineTranslationBubble(text) {
   bubble.style.resize = "both";
   bubble.style.overflow = "auto";
 
+  // Create header container
+  const header = document.createElement("div");
+  header.id = "shallott-bubble-header";
+  header.style.display = "flex";
+  header.style.justifyContent = "space-between";
+  header.style.alignItems = "center";
+  header.style.borderBottom = "1px solid #2e3440";
+  header.style.paddingBottom = "6px";
+  header.style.marginBottom = "8px";
+  header.style.cursor = "move";
+  header.style.userSelect = "none";
+
+  const titleSpan = document.createElement("span");
+  titleSpan.style.fontWeight = "bold";
+  titleSpan.style.color = "#ffaa33";
+  titleSpan.style.pointerEvents = "none";
+  titleSpan.textContent = "ShallotT Local Translation 🧅";
+
+  const closeBtn = document.createElement("span");
+  closeBtn.id = "shallott-close-btn";
+  closeBtn.style.cursor = "pointer";
+  closeBtn.style.padding = "2px 6px";
+  closeBtn.style.fontWeight = "bold";
+  closeBtn.style.userSelect = "none";
+  closeBtn.textContent = "✕";
+
+  header.appendChild(titleSpan);
+  header.appendChild(closeBtn);
+  bubble.appendChild(header);
+
+  // Original text display
+  const orgTextDiv = document.createElement("div");
+  orgTextDiv.style.fontStyle = "italic";
+  orgTextDiv.style.color = "#707a8a";
+  orgTextDiv.style.marginBottom = "5px";
+  orgTextDiv.style.maxHeight = "40px";
+  orgTextDiv.style.overflow = "hidden";
+  orgTextDiv.style.textOverflow = "ellipsis";
+  orgTextDiv.style.whiteSpace = "nowrap";
+  orgTextDiv.style.pointerEvents = "none";
+  orgTextDiv.textContent = `"${text}"`;
+  bubble.appendChild(orgTextDiv);
+
+  // Translation result container
+  const resultBox = document.createElement("div");
+  resultBox.id = "shallott-bubble-result";
+  resultBox.style.lineHeight = "1.5";
+  resultBox.style.color = "#a6e3a1";
+  resultBox.style.maxHeight = "180px";
+  resultBox.style.overflowY = "auto";
+  resultBox.style.wordBreak = "break-word";
+  resultBox.style.whiteSpace = "pre-wrap";
+  resultBox.textContent = "Traductions en cours...";
+  bubble.appendChild(resultBox);
+
+  // Bottom action bar
+  const bottomBar = document.createElement("div");
+  bottomBar.style.display = "flex";
+  bottomBar.style.justifyContent = "space-between";
+  bottomBar.style.alignItems = "center";
+  bottomBar.style.marginTop = "8px";
+  bottomBar.style.borderTop = "1px solid #2e3440";
+  bottomBar.style.paddingTop = "6px";
+
+  const btnContainer = document.createElement("div");
+  btnContainer.style.display = "flex";
+  btnContainer.style.gap = "6px";
+
+  const copyBtn = document.createElement("button");
+  copyBtn.id = "shallott-bubble-copy";
+  copyBtn.style.background = "#585b70";
+  copyBtn.style.color = "#cdd6f4";
+  copyBtn.style.border = "none";
+  copyBtn.style.borderRadius = "3px";
+  copyBtn.style.padding = "3px 8px";
+  copyBtn.style.fontSize = "10px";
+  copyBtn.style.cursor = "pointer";
+  copyBtn.title = "Copier la traduction";
+  copyBtn.textContent = "📋 Copier";
+
+  const replaceBtn = document.createElement("button");
+  replaceBtn.id = "shallott-bubble-replace";
+  replaceBtn.style.background = "#ffaa33";
+  replaceBtn.style.color = "#000";
+  replaceBtn.style.border = "none";
+  replaceBtn.style.borderRadius = "3px";
+  replaceBtn.style.padding = "3px 8px";
+  replaceBtn.style.fontSize = "10px";
+  replaceBtn.style.cursor = "pointer";
+  replaceBtn.style.fontWeight = "bold";
+  replaceBtn.title = "Remplacer le texte sélectionné par la traduction";
+  replaceBtn.textContent = "🔄 Remplacer";
+
+  btnContainer.appendChild(copyBtn);
+  btnContainer.appendChild(replaceBtn);
+
+  const apiLabel = document.createElement("div");
+  apiLabel.style.fontSize = "9px";
+  apiLabel.style.color = "#707a8a";
+  apiLabel.style.pointerEvents = "none";
+  apiLabel.textContent = "Gemma local API";
+
+  bottomBar.appendChild(btnContainer);
+  bottomBar.appendChild(apiLabel);
+  bubble.appendChild(bottomBar);
+
   // Bubble internal layout (including checking storage for custom font settings)
   chrome.storage.local.get(['extFontSize', 'extFontFamily', 'extDyslexicMode'], (storedPrefs) => {
     let size = storedPrefs.extFontSize || 12;
@@ -490,37 +596,17 @@ function displayInlineTranslationBubble(text) {
     bubble.style.fontSize = `${size}px`;
     bubble.style.fontFamily = family;
 
-    const resultBox = document.getElementById("shallott-bubble-result");
-    if (resultBox) {
-      resultBox.style.fontSize = `${size}px`;
-      resultBox.style.fontFamily = family;
-      if (isDyslexic) {
-        resultBox.style.color = "#ffff00";
-        resultBox.style.fontWeight = "bold";
-      }
+    resultBox.style.fontSize = `${size}px`;
+    resultBox.style.fontFamily = family;
+    if (isDyslexic) {
+      resultBox.style.color = "#ffff00";
+      resultBox.style.fontWeight = "bold";
     }
   });
-
-  bubble.innerHTML = `
-    <div id="shallott-bubble-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2e3440; padding-bottom:6px; margin-bottom:8px; cursor:move; user-select:none;">
-      <span style="font-weight:bold; color:#ffaa33; pointer-events:none;">ShallotT Local Translation 🧅</span>
-      <span id="shallott-close-btn" style="cursor:pointer; padding:2px 6px; font-weight:bold; user-select:none;">✕</span>
-    </div>
-    <div style="font-style:italic; color:#707a8a; margin-bottom:5px; max-height:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; pointer-events:none;">"${text}"</div>
-    <div id="shallott-bubble-result" style="line-height:1.5; color:#a6e3a1; max-height:180px; overflow-y:auto; word-break:break-word; white-space:pre-wrap;">Traductions en cours...</div>
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; border-top:1px solid #2e3440; padding-top:6px;">
-      <div style="display:flex; gap:6px;">
-        <button id="shallott-bubble-copy" style="background:#585b70; color:#cdd6f4; border:none; border-radius:3px; padding:3px 8px; font-size:10px; cursor:pointer;" title="Copier la traduction">📋 Copier</button>
-        <button id="shallott-bubble-replace" style="background:#ffaa33; color:#000; border:none; border-radius:3px; padding:3px 8px; font-size:10px; cursor:pointer; font-weight:bold;" title="Remplacer le texte sélectionné par la traduction">🔄 Remplacer</button>
-      </div>
-      <div style="font-size:9px; color:#707a8a; pointer-events:none;">Gemma local API</div>
-    </div>
-  `;
 
   document.body.appendChild(bubble);
 
   // Drag and drop mechanism for the floating widget
-  const header = document.getElementById("shallott-bubble-header");
   let isDragging = false;
   let startX = 0;
   let startY = 0;
@@ -568,7 +654,7 @@ function displayInlineTranslationBubble(text) {
   // Close event listener (clears also mouse listeners to avoid memory leak and cancels active translate)
   const currentTrackingId = "track-" + Date.now();
 
-  document.getElementById("shallott-close-btn").addEventListener("click", () => {
+  closeBtn.addEventListener("click", () => {
     chrome.runtime.sendMessage({ action: "abort-translation", trackingId: currentTrackingId });
     document.removeEventListener("mousemove", onMouseMove);
     document.removeEventListener("mouseup", onMouseUp);
@@ -603,7 +689,6 @@ function displayInlineTranslationBubble(text) {
       resContainer.textContent = response.translation;
 
       // Copy Action
-      const copyBtn = document.getElementById("shallott-bubble-copy");
       if (copyBtn) {
         copyBtn.addEventListener("click", () => {
           navigator.clipboard.writeText(response.translation).then(() => {
@@ -616,7 +701,6 @@ function displayInlineTranslationBubble(text) {
       }
 
       // Replace Action
-      const replaceBtn = document.getElementById("shallott-bubble-replace");
       if (replaceBtn) {
         replaceBtn.addEventListener("click", () => {
           try {
