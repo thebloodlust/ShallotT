@@ -61,7 +61,7 @@ class ShallotTApp(QMainWindow):
         self.init_timer.timeout.connect(self.trigger_automagic_translation)
         
         # UI setup
-        self.setWindowTitle("ShallotT - DeepL AI Local")
+        self.setWindowTitle("ShallotT - Traducteur IA Local")
         self.resize(750, 480)
         
         # Load custom Shallot icon

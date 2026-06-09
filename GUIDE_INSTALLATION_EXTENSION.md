@@ -45,7 +45,7 @@ Sur les versions de développement de Firefox (développeurs, testeurs, entrepri
 3. Cherchez la clé d'option suivante : **`xpinstall.signatures.required`**.
 4. Double-cliquez sur sa valeur pour la passer de `true` à **`false`**.
 5. Allez dans vos extensions (`about:addons`).
-6. Glissez-déposez simplement le fichier d'archive [web-ext-artifacts/shallott_-_deepl_ai_local-1.0.0.zip](web-ext-artifacts/shallott_-_deepl_ai_local-1.0.0.zip) directement sur la page. L'extension restera de façon permanente !
+6. Glissez-deposez simplement le fichier d'archive [web-ext-artifacts/shallott_-_traducteur_ia_local-1.0.0.zip](web-ext-artifacts/shallott_-_traducteur_ia_local-1.0.0.zip) directement sur la page. L'extension restera de façon permanente !
 
 ---
 

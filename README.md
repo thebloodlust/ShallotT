@@ -1,6 +1,6 @@
-# ShallotT 🧅 — Équivalent DeepL Local par IA (Bureau Multi-OS & Extension Navigateur)
+# ShallotT 🧅 — Traducteur local alimenté avec l'IA (Bureau Multi-OS & Extension Navigateur)
 
-**ShallotT** est une suite de traduction légère, moderne et ultra-rapide conçue pour reproduire l'ergonomie légendaire de l'application **DeepL**, tout en fonctionnant à 100% en local (ou via VPN/distant) grâce à la puissance d'**Ollama** et du modèle **Gemma 2 (8b, 9b, q4_k_m ou autre)**.
+**ShallotT** est une suite de traduction légère, moderne et ultra-rapide conçue comme un traducteur de premier choix alimenté avec l'IA (IA locale / VPN / distant), tout en fonctionnant à 100% en local grâce à la puissance d'**Ollama** et du modèle **Gemma 2 (8b, 9b, q4_k_m ou autre)**.
 
 Aucun abonnement requis, aucune donnée ne quitte votre machine ou vos réseaux sécurisés (idéal avec Tailscale / Wireguard). Les traductions se font sans streaming, délivrant un résultat immédiat en un clin d'œil.
 
@@ -115,7 +115,7 @@ Cette méthode est **100% robuste**, fonctionne partout sous Wayland, X11 ou Win
 
 ## 🎨 Personnalisation du Prompt Gemma 2
 
-L'intégration de Gemma est codée dans `src/ollama_client.py` (pour le bureau) et `extension/src/background.js` / `popup.js` (pour l'extension). Elle utilise un prompt spécifiquement conçu pour guider le modèle à agir exactement comme l'API DeepL, en évitant le bavardage (pas d'introductions du type *"Voici votre traduction :"* ou *"J'espère que cela vous aide"*), garantissant ainsi un temps de réponse minimal. Vous pouvez ajuster la température (par défaut `0.2` pour plus de fidélité) dans les paramètres du payload.
+L'intégration de Gemma est codée dans `src/ollama_client.py` (pour le bureau) et `extension/src/background.js` / `popup.js` (pour l'extension). Elle utilise un prompt spécifiquement conçu pour guider le modèle à agir de manière extrêmement précise pour la traduction par IA, en évitant le bavardage (pas d'introductions du type *"Voici votre traduction :"* ou *"J'espère que cela vous aide"*), garantissant ainsi un temps de réponse minimal. Vous pouvez ajuster la température (par défaut `0.2` pour plus de fidélité) dans les paramètres du payload.
 
 ## 🗂️ Structure du Projet
 
@@ -182,7 +182,7 @@ python build_exe.py
 Ce script installe PyInstaller, nettoie les anciens caches et compile l'interface dans un exécutable standalone optimisé. Vous retrouverez l'exécutable généré dans le sous-dossier `dist\ShallotT.exe`.
 
 ### 2. Créer un installeur d'application Windows (`.msi` ou `.exe` d'installation)
-Pour distribuer ShallotT sous forme d'installateur classique de type setup ou MSI (comme l'application DeepL officielle), nous vous conseillons d'utiliser des outils de packaging standard et extrêmement robustes :
+Pour distribuer ShallotT sous forme d'installateur classique de type setup ou MSI, nous vous conseillons d'utiliser des outils de packaging standard et extrêmement robustes :
 
 *   **Inno Setup (Recommandé - .exe d'installation)** :
     1. Téléchargez et installez gratuitement [Inno Setup](https://jrsoftware.org/isinfo.php).
