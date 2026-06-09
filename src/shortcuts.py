@@ -50,35 +50,44 @@ class ShortcutManager:
         return None
 
     def on_press(self, key):
-        name = self.get_key_name(key)
-        if name:
-            self.pressed_keys.add(name)
+        try:
+            name = self.get_key_name(key)
+            if name:
+                self.pressed_keys.add(name)
+                
+            # Load latest config dynamically to support hot-swapping shortcuts!
+            config = self.config_provider() if self.config_provider else {}
+            trans_shortcut = config.get("shortcut_translate", "ctrl+c+c").lower().strip()
+            ocr_shortcut = config.get("shortcut_ocr", "ctrl+f8").lower().strip()
             
-        # Load latest config dynamically to support hot-swapping shortcuts!
-        config = self.config_provider() if self.config_provider else {}
-        trans_shortcut = config.get("shortcut_translate", "ctrl+c+c").lower().strip()
-        ocr_shortcut = config.get("shortcut_ocr", "ctrl+f8").lower().strip()
-        
-        # 1. Translate action trigger checks
-        if trans_shortcut == "ctrl+c+c":
-            if "ctrl" in self.pressed_keys and name == "c":
-                current_time = time.time()
-                if current_time - self.last_c_press_time < 0.5:
+            # 1. Translate action trigger checks
+            if trans_shortcut == "ctrl+c+c":
+                if "ctrl" in self.pressed_keys and name == "c":
+                    current_time = time.time()
+                    if current_time - self.last_c_press_time < 0.5:
+                        self.pressed_keys.clear()  # Clear to avoid stuck keys
+                        self.on_translate_trigger()
+                        self.last_c_press_time = 0
+                    else:
+                        self.last_c_press_time = current_time
+            else:
+                target_keys = set(trans_shortcut.split("+"))
+                if target_keys and target_keys.issubset(self.pressed_keys):
+                    self.pressed_keys.clear()  # Clear to avoid stuck keys
                     self.on_translate_trigger()
-                    self.last_c_press_time = 0
-                else:
-                    self.last_c_press_time = current_time
-        else:
-            target_keys = set(trans_shortcut.split("+"))
-            if target_keys and self.pressed_keys == target_keys:
-                self.on_translate_trigger()
 
-        # 2. OCR action trigger checks
-        target_ocr_keys = set(ocr_shortcut.split("+"))
-        if target_ocr_keys and self.pressed_keys == target_ocr_keys:
-            self.on_ocr_trigger()
+            # 2. OCR action trigger checks
+            target_ocr_keys = set(ocr_shortcut.split("+"))
+            if target_ocr_keys and target_ocr_keys.issubset(self.pressed_keys):
+                self.pressed_keys.clear()  # Clear to avoid stuck keys
+                self.on_ocr_trigger()
+        except Exception as e:
+            print(f"Error in shortcuts on_press: {e}")
 
     def on_release(self, key):
-        name = self.get_key_name(key)
-        if name and name in self.pressed_keys:
-            self.pressed_keys.discard(name)
+        try:
+            name = self.get_key_name(key)
+            if name and name in self.pressed_keys:
+                self.pressed_keys.discard(name)
+        except Exception as e:
+            print(f"Error in shortcuts on_release: {e}")
