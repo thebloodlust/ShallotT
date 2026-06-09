@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import pyperclip
 from PyQt6.QtCore import Qt, QRect, QPoint, pyqtSignal, QTimer
 from PyQt6.QtWidgets import QWidget, QApplication
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPixmap, QScreen
@@ -160,7 +159,7 @@ class PowerToysOCRHelper:
     def __init__(self, on_text_ready):
         self.on_text_ready = on_text_ready
         try:
-            self.initial_text = pyperclip.paste()
+            self.initial_text = QApplication.clipboard().text()
         except Exception:
             self.initial_text = ""
         self.timer = QTimer()
@@ -190,7 +189,7 @@ class PowerToysOCRHelper:
             return
             
         try:
-            current_text = pyperclip.paste()
+            current_text = QApplication.clipboard().text()
             if current_text != self.initial_text:
                 if current_text and current_text.strip():
                     self.timer.stop()

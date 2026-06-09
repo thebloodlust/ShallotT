@@ -9,7 +9,6 @@ from PyQt6.QtWidgets import (
     QApplication, QSpinBox
 )
 from PyQt6.QtGui import QFont, QIcon, QAction, QColor, QPalette, QKeySequence, QPixmap
-import pyperclip
 
 from src.config import load_config, save_config, CONFIG_PATH
 from src.ollama_client import OllamaTranslator
@@ -818,7 +817,8 @@ class ShallotTApp(QMainWindow):
     def copy_translation_to_clipboard(self):
         text = self.target_text_edit.toPlainText()
         if text:
-            pyperclip.copy(text)
+            clipboard = QApplication.clipboard()
+            clipboard.setText(text)
             self.statusBar().showMessage("Translation copied to clipboard!", 2000)
 
     def refresh_ollama_models(self):
@@ -915,7 +915,8 @@ class ShallotTApp(QMainWindow):
 
     def _process_clipboard_translation(self):
         try:
-            copied_text = pyperclip.paste()
+            clipboard = QApplication.clipboard()
+            copied_text = clipboard.text()
             if copied_text and copied_text.strip():
                 # Display window immediately
                 self.show_normal()
