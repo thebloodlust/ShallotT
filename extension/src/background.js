@@ -430,21 +430,9 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       configToUpdate.targetLang = targetLangOverride;
     }
 
-    // Read stored language to perform smart target language auto-swap if source text matches target language
-    chrome.storage.local.get(['targetLang'], (stored) => {
-      const activeTarget = targetLangOverride || stored.targetLang || "French";
-      const isEnglish = detectIsEnglishHeuristic(selectedText);
-      const isFrench = detectIsFrenchHeuristic(selectedText);
-      
-      if (isEnglish && activeTarget === "English") {
-        configToUpdate.targetLang = "French";
-      } else if (isFrench && activeTarget === "French") {
-        configToUpdate.targetLang = "English";
-      }
-
-      chrome.storage.local.set(configToUpdate, () => {
-        runTranslation();
-      });
+    // Direct translation run after configuration updates
+    chrome.storage.local.set(configToUpdate, () => {
+      runTranslation();
     });
   }
 });
@@ -520,7 +508,13 @@ function displayInlineTranslationBubble(text) {
     </div>
     <div style="font-style:italic; color:#707a8a; margin-bottom:5px; max-height:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; pointer-events:none;">"${text}"</div>
     <div id="shallott-bubble-result" style="line-height:1.5; color:#a6e3a1; max-height:180px; overflow-y:auto; word-break:break-word; white-space:pre-wrap;">Traductions en cours...</div>
-    <div style="display:flex; justify-content:flex-end; margin-top:8px; font-size:10px; color:#707a8a; pointer-events:none;">Gemma local API</div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; border-top:1px solid #2e3440; padding-top:6px;">
+      <div style="display:flex; gap:6px;">
+        <button id="shallott-bubble-copy" style="background:#585b70; color:#cdd6f4; border:none; border-radius:3px; padding:3px 8px; font-size:10px; cursor:pointer;" title="Copier la traduction">📋 Copier</button>
+        <button id="shallott-bubble-replace" style="background:#ffaa33; color:#000; border:none; border-radius:3px; padding:3px 8px; font-size:10px; cursor:pointer; font-weight:bold;" title="Remplacer le texte sélectionné par la traduction">🔄 Remplacer</button>
+      </div>
+      <div style="font-size:9px; color:#707a8a; pointer-events:none;">Gemma local API</div>
+    </div>
   `;
 
   document.body.appendChild(bubble);
@@ -607,6 +601,40 @@ function displayInlineTranslationBubble(text) {
 
     if (response && response.success) {
       resContainer.textContent = response.translation;
+
+      // Copy Action
+      const copyBtn = document.getElementById("shallott-bubble-copy");
+      if (copyBtn) {
+        copyBtn.addEventListener("click", () => {
+          navigator.clipboard.writeText(response.translation).then(() => {
+            copyBtn.textContent = "✓ Copié !";
+            setTimeout(() => { copyBtn.textContent = "📋 Copier"; }, 2000);
+          }).catch(err => {
+            alert("Erreur de copie de document : " + err);
+          });
+        });
+      }
+
+      // Replace Action
+      const replaceBtn = document.getElementById("shallott-bubble-replace");
+      if (replaceBtn) {
+        replaceBtn.addEventListener("click", () => {
+          try {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+              const range = selection.getRangeAt(0);
+              range.deleteContents();
+              range.insertNode(document.createTextNode(response.translation));
+              replaceBtn.textContent = "✓ Remplacé !";
+              setTimeout(() => { replaceBtn.textContent = "🔄 Remplacer"; }, 2000);
+            } else {
+              alert("Aucune sélection active trouvée pour effectuer le remplacement.");
+            }
+          } catch (e) {
+            alert("Remplacement non autorisé sur de l'input/champ natif complexe (essayez Ctrl+V à la place).");
+          }
+        });
+      }
     } else {
       if (response && response.error === "AbortedByUser") return;
       resContainer.style.color = "#f38ba8";
