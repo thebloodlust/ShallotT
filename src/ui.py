@@ -418,6 +418,11 @@ class ShallotTApp(QMainWindow):
         self.copy_btn.clicked.connect(self.copy_translation_to_clipboard)
         target_bottom.addWidget(self.copy_btn)
         
+        self.replace_btn = QPushButton("Replace Selection")
+        self.replace_btn.clicked.connect(self.replace_active_selection_with_translation)
+        self.replace_btn.setToolTip("Remplacer le texte d'origine sélectionné dans l'autre application par ce texte traduit")
+        target_bottom.addWidget(self.replace_btn)
+        
         target_vbox.addWidget(self.target_text_edit)
         target_vbox.addLayout(target_bottom)
         
@@ -820,6 +825,59 @@ class ShallotTApp(QMainWindow):
             clipboard = QApplication.clipboard()
             clipboard.setText(text)
             self.statusBar().showMessage("Translation copied to clipboard!", 2000)
+
+    def replace_active_selection_with_translation(self):
+        """
+        Copies the translated text, simulates releasing all modifier keys,
+        and simulates standard pasting command (Ctrl+V) into the previously active application
+        to instantly swap the original selection with the new translation!
+        """
+        translated_text = self.target_text_edit.toPlainText()
+        if not translated_text:
+            return
+            
+        try:
+            # 1. Store translated text in system clipboard
+            clipboard = QApplication.clipboard()
+            clipboard.setText(translated_text)
+            
+            # Hide or minimize the translator window first to restore focus to the target app!
+            self.hide() # Hide window to automatically yield OS focus to the previously active text area
+            
+            # Allow target application to regain keyboard focus
+            QTimer.singleShot(150, self._dispatch_paste_sequence)
+        except Exception as e:
+            self.statusBar().showMessage(f"Replacement failed: {str(e)}", 3000)
+
+    def _dispatch_paste_sequence(self):
+        try:
+            from pynput.keyboard import Key, Controller
+            kb = Controller()
+            
+            # Release any physical modifier keys to avoid contaminations
+            for modifier in [Key.ctrl, Key.ctrl_l, Key.ctrl_r, Key.shift, Key.shift_l, Key.shift_r, Key.alt, Key.alt_l, Key.alt_r, Key.cmd, Key.cmd_l, Key.cmd_r]:
+                try:
+                    kb.release(modifier)
+                except Exception:
+                    pass
+            for i in range(1, 13):
+                try:
+                    f_key = getattr(Key, f'f{i}', None)
+                    if f_key:
+                        kb.release(f_key)
+                except Exception:
+                    pass
+            
+            # Simulate Paste action: Ctrl+V (works on all OS including Linux/Windows)
+            kb.press(Key.ctrl)
+            kb.press('v')
+            kb.release('v')
+            kb.release(Key.ctrl)
+            
+            # Restore window visibility in tray mode
+            self.statusBar().showMessage("Selection replaced successfully!", 3000)
+        except Exception as e:
+            print(f"Error executing paste replacement sequence: {e}")
 
     def refresh_ollama_models(self):
         """Fetch available models from the Ollama server."""
