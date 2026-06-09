@@ -146,7 +146,22 @@ class ShallotTApp(QMainWindow):
                 color: #cdd6f4;
                 min-height: 25px;
             }
-            QComboBox:focus, QLineEdit:focus {
+            QComboBox QAbstractItemView {
+                background-color: #1e1e2e;
+                color: #cdd6f4;
+                selection-background-color: #313244;
+                selection-color: #89b4fa;
+                border: 1px solid #45475a;
+            }
+            QSpinBox {
+                background-color: #313244;
+                border: 1px solid #45475a;
+                border-radius: 4px;
+                padding: 5px;
+                color: #cdd6f4;
+                min-height: 25px;
+            }
+            QComboBox:focus, QLineEdit:focus, QSpinBox:focus {
                 border: 1px solid #89b4fa;
             }
             QPushButton {
@@ -249,7 +264,15 @@ class ShallotTApp(QMainWindow):
                 color: #1e1e2e;
                 min-height: 25px;
             }
-            QComboBox:focus, QLineEdit:focus {
+            QSpinBox {
+                background-color: #ffffff;
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                padding: 5px;
+                color: #1e1e2e;
+                min-height: 25px;
+            }
+            QComboBox:focus, QLineEdit:focus, QSpinBox:focus {
                 border: 1px solid #2563eb;
             }
             QPushButton {
