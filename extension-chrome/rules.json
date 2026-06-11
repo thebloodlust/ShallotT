@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Origin", "operation": "set", "value": "http://localhost:11434" },
+        { "header": "Referer", "operation": "set", "value": "http://localhost:11434/" }
+      ]
+    },
+    "condition": {
+      "regexFilter": "(11434|/api/generate|/api/tags)",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  }
+]
