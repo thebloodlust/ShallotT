@@ -227,7 +227,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const openShortcutsBtn = document.getElementById('openShortcutsBtn');
   if (openShortcutsBtn) {
     openShortcutsBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+      // Firefox blocks extensions from opening chrome:// pages; its closest
+      // equivalent is about:addons (gear menu > Manage Extension Shortcuts).
+      const isFirefox = typeof browser !== 'undefined';
+      const url = isFirefox ? 'about:addons' : 'chrome://extensions/shortcuts';
+      chrome.tabs.create({ url });
     });
   }
 

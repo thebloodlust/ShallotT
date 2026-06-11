@@ -466,12 +466,12 @@ class ShallotTApp(QMainWindow):
         text_layout.addLayout(src_vbox, 1)
         text_layout.addLayout(target_vbox, 1)
         
-        trans_layout.addLayout(text_layout)
-        
+        trans_layout.addLayout(text_layout, 1)
+
         # Manual Translate Button at bottom
         self.translate_btn = QPushButton("Translate (Enter)")
         self.translate_btn.clicked.connect(self.trigger_manual_translation)
-        trans_layout.addWidget(self.translate_btn)
+        trans_layout.addWidget(self.translate_btn, 0)
         
         self.tabs.addTab(translator_widget, "Translator")
         

@@ -15,7 +15,8 @@
     }
     
     body {
-      width: 400px;
+      width: 100%;
+      height: 100%;
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       background-color: var(--bg-color);
       color: var(--text-color);
@@ -23,6 +24,8 @@
       padding: 12px;
       box-sizing: border-box;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
     body.high-contrast-dyslexic {
@@ -39,7 +42,9 @@
     /* Resizable WebExtension popup support */
     html {
       resize: both;
-      overflow: auto;
+      overflow: hidden;
+      width: 400px;
+      height: 450px;
       min-width: 400px;
       min-height: 450px;
       max-width: 900px;
@@ -136,15 +141,22 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
+      flex: 1;
+      min-height: 0;
     }
-    
+
     .area-container {
       position: relative;
+      flex: 1;
+      min-height: 60px;
+      display: flex;
+      flex-direction: column;
     }
-    
+
     textarea {
       width: 100%;
-      height: 90px;
+      flex: 1;
+      min-height: 0;
       background-color: var(--input-bg);
       color: var(--text-color);
       border: 1px solid var(--border-color);
@@ -328,7 +340,7 @@
       </p>
       <button type="button" class="secondary" id="openShortcutsBtn" style="width: 100%; padding: 4px; font-size: 10px; margin-bottom: 4px; cursor: pointer;">🎯 Gérer les Raccourcis de l’Extension</button>
       <p style="margin: 0; font-size: 9.5px; color: var(--text-muted); line-height: 1.3;">
-        *Note : Dans Chrome/Brave/Edge, visitez <b>chrome://extensions/shortcuts</b> pour personnaliser librement ces raccourcis clavier.*
+        *Note : Dans Chrome/Brave/Edge, visitez <b>chrome://extensions/shortcuts</b> pour personnaliser librement ces raccourcis clavier. Dans Firefox, ouvrez <b>about:addons</b>, puis l'icône ⚙️ &rarr; "Gérer les raccourcis des extensions".*
       </p>
     </div>
     <div style="display: flex; gap: 6px; margin-top: 10px;">
