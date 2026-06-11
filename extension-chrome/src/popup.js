@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const extVersion = document.getElementById('extVersion');
+  if (extVersion) {
+    extVersion.textContent = `v${chrome.runtime.getManifest().version}`;
+  }
+
   const srcText = document.getElementById('srcText');
   const targetText = document.getElementById('targetText');
   const srcLang = document.getElementById('srcLang');
@@ -227,11 +232,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const openShortcutsBtn = document.getElementById('openShortcutsBtn');
   if (openShortcutsBtn) {
     openShortcutsBtn.addEventListener('click', () => {
-      // Firefox blocks extensions from opening chrome:// pages; its closest
-      // equivalent is about:addons (gear menu > Manage Extension Shortcuts).
-      const isFirefox = typeof browser !== 'undefined';
-      const url = isFirefox ? 'about:addons' : 'chrome://extensions/shortcuts';
-      chrome.tabs.create({ url });
+      // Firefox provides a dedicated API to open its "Manage Extension
+      // Shortcuts" dialog directly. Chrome has no equivalent; chrome://
+      // URLs are illegal to open from extensions in Firefox.
+      const commandsApi = (typeof browser !== 'undefined' && browser.commands) || chrome.commands;
+      if (commandsApi && commandsApi.openShortcutSettings) {
+        commandsApi.openShortcutSettings();
+      } else {
+        chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+      }
     });
   }
 

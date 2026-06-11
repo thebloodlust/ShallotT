@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ShallotT - Traducteur IA Local",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Traducteur local et ultra-rapide alimenté avec l'IA utilisant Ollama et Gemma pour traduire instantanément.",
   "permissions": [
     "storage",
