@@ -4,7 +4,7 @@
   "version": "1.0.2",
   "browser_specific_settings": {
     "gecko": {
-      "id": "shallott@local-ai.translator",
+      "id": "{28ca131e-ab92-4713-ab9c-efffcfd19825}",
       "data_collection_permissions": {
         "required": [
           "none"
