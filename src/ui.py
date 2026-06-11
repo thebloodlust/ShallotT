@@ -1,6 +1,7 @@
 import sys
 import threading
 import re
+from string import Template
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QEvent, QSize
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, 
@@ -19,6 +20,233 @@ LANGUAGES = [
 ]
 
 SOURCE_LANGUAGES = ["Auto Detection"] + LANGUAGES
+
+# Color tokens for each available skin. "pal_*" entries feed the QPalette,
+# the rest feed the QSS template in ShallotTApp.apply_theme().
+THEMES = {
+    "dark": {
+        "pal_window": "#181825", "pal_windowtext": "#cdd6f4", "pal_base": "#1e1e2e",
+        "pal_alternatebase": "#11111b", "pal_tooltipbase": "#cdd6f4", "pal_tooltiptext": "#11111b",
+        "pal_text": "#cdd6f4", "pal_button": "#2d2f48", "pal_buttontext": "#cdd6f4",
+        "pal_brighttext": "#89b4fa", "pal_highlight": "#89b4fa", "pal_highlightedtext": "#11111b",
+        "window_bg": "#181825", "text": "#cdd6f4",
+        "textedit_bg": "#1e1e2e", "textedit_border": "#313244", "focus_border": "#89b4fa",
+        "input_bg": "#313244", "input_border": "#45475a",
+        "combo_view_bg": "#1e1e2e", "combo_view_text": "#cdd6f4",
+        "combo_view_sel_bg": "#313244", "combo_view_sel_text": "#89b4fa",
+        "groupbox_border": "#45475a",
+        "accent_bg": "#89b4fa", "accent_text": "#11111b", "accent_hover": "#b4befe", "accent_pressed": "#74c7ec",
+        "secondary_bg": "#45475a", "secondary_text": "#cdd6f4", "secondary_border": "#45475a", "secondary_hover": "#585b70",
+        "tab_pane_bg": "#1e1e2e", "tab_pane_border": "#313244",
+        "tabbar_bg": "#11111b", "tabbar_border": "#313244", "tabbar_text": "#cdd6f4",
+        "tab_selected_bg": "#1e1e2e", "tab_selected_text": "#cdd6f4",
+        "statusbar_bg": "#11111b", "statusbar_text": "#a6adc8",
+    },
+    "light": {
+        "pal_window": "#f0f0f5", "pal_windowtext": "#1e1e2e", "pal_base": "#ffffff",
+        "pal_alternatebase": "#e1e1e6", "pal_tooltipbase": "#1e1e2e", "pal_tooltiptext": "#ffffff",
+        "pal_text": "#1e1e2e", "pal_button": "#dcdce1", "pal_buttontext": "#1e1e2e",
+        "pal_brighttext": "#2563eb", "pal_highlight": "#2563eb", "pal_highlightedtext": "#ffffff",
+        "window_bg": "#f0f0f5", "text": "#1e1e2e",
+        "textedit_bg": "#ffffff", "textedit_border": "#cccccc", "focus_border": "#2563eb",
+        "input_bg": "#ffffff", "input_border": "#cccccc",
+        "combo_view_bg": "#ffffff", "combo_view_text": "#1e1e2e",
+        "combo_view_sel_bg": "#e5e5ea", "combo_view_sel_text": "#2563eb",
+        "groupbox_border": "#cccccc",
+        "accent_bg": "#2563eb", "accent_text": "#ffffff", "accent_hover": "#1d4ed8", "accent_pressed": "#1e40af",
+        "secondary_bg": "#e5e5ea", "secondary_text": "#1e1e2e", "secondary_border": "#cccccc", "secondary_hover": "#d1d1d6",
+        "tab_pane_bg": "#ffffff", "tab_pane_border": "#cccccc",
+        "tabbar_bg": "#e5e5ea", "tabbar_border": "#cccccc", "tabbar_text": "#1e1e2e",
+        "tab_selected_bg": "#ffffff", "tab_selected_text": "#1e1e2e",
+        "statusbar_bg": "#f0f0f5", "statusbar_text": "#555555",
+    },
+    "nord": {
+        "pal_window": "#2e3440", "pal_windowtext": "#eceff4", "pal_base": "#3b4252",
+        "pal_alternatebase": "#2e3440", "pal_tooltipbase": "#eceff4", "pal_tooltiptext": "#2e3440",
+        "pal_text": "#e5e9f0", "pal_button": "#434c5e", "pal_buttontext": "#eceff4",
+        "pal_brighttext": "#88c0d0", "pal_highlight": "#88c0d0", "pal_highlightedtext": "#2e3440",
+        "window_bg": "#2e3440", "text": "#e5e9f0",
+        "textedit_bg": "#3b4252", "textedit_border": "#4c566a", "focus_border": "#88c0d0",
+        "input_bg": "#434c5e", "input_border": "#4c566a",
+        "combo_view_bg": "#3b4252", "combo_view_text": "#e5e9f0",
+        "combo_view_sel_bg": "#434c5e", "combo_view_sel_text": "#88c0d0",
+        "groupbox_border": "#4c566a",
+        "accent_bg": "#88c0d0", "accent_text": "#2e3440", "accent_hover": "#8fbcbb", "accent_pressed": "#81a1c1",
+        "secondary_bg": "#4c566a", "secondary_text": "#eceff4", "secondary_border": "#4c566a", "secondary_hover": "#5e6a82",
+        "tab_pane_bg": "#3b4252", "tab_pane_border": "#434c5e",
+        "tabbar_bg": "#242933", "tabbar_border": "#434c5e", "tabbar_text": "#d8dee9",
+        "tab_selected_bg": "#3b4252", "tab_selected_text": "#eceff4",
+        "statusbar_bg": "#242933", "statusbar_text": "#9ca7b8",
+    },
+    "solarized": {
+        "pal_window": "#fdf6e3", "pal_windowtext": "#073642", "pal_base": "#eee8d5",
+        "pal_alternatebase": "#fdf6e3", "pal_tooltipbase": "#073642", "pal_tooltiptext": "#fdf6e3",
+        "pal_text": "#073642", "pal_button": "#eee8d5", "pal_buttontext": "#073642",
+        "pal_brighttext": "#268bd2", "pal_highlight": "#268bd2", "pal_highlightedtext": "#fdf6e3",
+        "window_bg": "#fdf6e3", "text": "#073642",
+        "textedit_bg": "#fffbef", "textedit_border": "#93a1a1", "focus_border": "#268bd2",
+        "input_bg": "#eee8d5", "input_border": "#93a1a1",
+        "combo_view_bg": "#eee8d5", "combo_view_text": "#073642",
+        "combo_view_sel_bg": "#d8d2bf", "combo_view_sel_text": "#268bd2",
+        "groupbox_border": "#93a1a1",
+        "accent_bg": "#268bd2", "accent_text": "#fdf6e3", "accent_hover": "#2aa198", "accent_pressed": "#6c71c4",
+        "secondary_bg": "#eee8d5", "secondary_text": "#586e75", "secondary_border": "#93a1a1", "secondary_hover": "#e4ddc8",
+        "tab_pane_bg": "#fffbef", "tab_pane_border": "#93a1a1",
+        "tabbar_bg": "#eee8d5", "tabbar_border": "#93a1a1", "tabbar_text": "#586e75",
+        "tab_selected_bg": "#fffbef", "tab_selected_text": "#073642",
+        "statusbar_bg": "#eee8d5", "statusbar_text": "#657b83",
+    },
+    "sepia": {
+        "pal_window": "#f4ecd8", "pal_windowtext": "#5b4636", "pal_base": "#fbf1e0",
+        "pal_alternatebase": "#ece0c8", "pal_tooltipbase": "#5b4636", "pal_tooltiptext": "#fbf1e0",
+        "pal_text": "#5b4636", "pal_button": "#e8dcc5", "pal_buttontext": "#5b4636",
+        "pal_brighttext": "#a9744f", "pal_highlight": "#a9744f", "pal_highlightedtext": "#fbf1e0",
+        "window_bg": "#f4ecd8", "text": "#5b4636",
+        "textedit_bg": "#fbf1e0", "textedit_border": "#d8c3a5", "focus_border": "#a9744f",
+        "input_bg": "#fbf1e0", "input_border": "#d8c3a5",
+        "combo_view_bg": "#fbf1e0", "combo_view_text": "#5b4636",
+        "combo_view_sel_bg": "#e8dcc5", "combo_view_sel_text": "#a9744f",
+        "groupbox_border": "#d8c3a5",
+        "accent_bg": "#a9744f", "accent_text": "#fdf6ec", "accent_hover": "#bf8b66", "accent_pressed": "#8f5f3d",
+        "secondary_bg": "#e8dcc5", "secondary_text": "#5b4636", "secondary_border": "#d8c3a5", "secondary_hover": "#ddcdae",
+        "tab_pane_bg": "#fbf1e0", "tab_pane_border": "#d8c3a5",
+        "tabbar_bg": "#e8dcc5", "tabbar_border": "#d8c3a5", "tabbar_text": "#5b4636",
+        "tab_selected_bg": "#fbf1e0", "tab_selected_text": "#5b4636",
+        "statusbar_bg": "#e8dcc5", "statusbar_text": "#7a6450",
+    },
+    "contrast": {
+        "pal_window": "#000000", "pal_windowtext": "#ffff00", "pal_base": "#000000",
+        "pal_alternatebase": "#1a1a1a", "pal_tooltipbase": "#ffff00", "pal_tooltiptext": "#000000",
+        "pal_text": "#ffff00", "pal_button": "#1a1a1a", "pal_buttontext": "#ffff00",
+        "pal_brighttext": "#00ffff", "pal_highlight": "#ffff00", "pal_highlightedtext": "#000000",
+        "window_bg": "#000000", "text": "#ffff00",
+        "textedit_bg": "#000000", "textedit_border": "#ffff00", "focus_border": "#00ffff",
+        "input_bg": "#000000", "input_border": "#ffff00",
+        "combo_view_bg": "#000000", "combo_view_text": "#ffff00",
+        "combo_view_sel_bg": "#ffff00", "combo_view_sel_text": "#000000",
+        "groupbox_border": "#ffff00",
+        "accent_bg": "#ffff00", "accent_text": "#000000", "accent_hover": "#ffffff", "accent_pressed": "#cccc00",
+        "secondary_bg": "#1a1a1a", "secondary_text": "#ffff00", "secondary_border": "#ffff00", "secondary_hover": "#333300",
+        "tab_pane_bg": "#000000", "tab_pane_border": "#ffff00",
+        "tabbar_bg": "#000000", "tabbar_border": "#ffff00", "tabbar_text": "#ffff00",
+        "tab_selected_bg": "#1a1a1a", "tab_selected_text": "#00ffff",
+        "statusbar_bg": "#000000", "statusbar_text": "#ffff00",
+    },
+}
+
+# Display labels shown in the theme picker, in display order.
+THEME_LABELS = {
+    "dark": "Dark Theme (Sombre)",
+    "light": "Light Theme (Clair)",
+    "nord": "Nord (Bleu glacial)",
+    "solarized": "Solarized Light (Lecture)",
+    "sepia": "Sépia (Confort visuel)",
+    "contrast": "Contraste élevé (Accessibilité)",
+}
+
+_STYLESHEET_TEMPLATE = Template("""
+    QMainWindow {
+        background-color: $window_bg;
+    }
+    QWidget {
+        color: $text;
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-size: 13px;
+    }
+    QGroupBox {
+        border: 1px solid $groupbox_border;
+        border-radius: 8px;
+        margin-top: 10px;
+        font-weight: bold;
+        padding-top: 15px;
+    }
+    QGroupBox::title {
+        subcontrol-origin: margin;
+        left: 10px;
+        padding: 0 5px;
+    }
+    QTextEdit {
+        background-color: $textedit_bg;
+        border: 1px solid $textedit_border;
+        border-radius: 6px;
+        padding: 10px;
+        color: $text;
+    }
+    QTextEdit:focus {
+        border: 1px solid $focus_border;
+    }
+    QComboBox, QLineEdit {
+        background-color: $input_bg;
+        border: 1px solid $input_border;
+        border-radius: 4px;
+        padding: 5px 10px;
+        color: $text;
+        min-height: 25px;
+    }
+    QComboBox QAbstractItemView {
+        background-color: $combo_view_bg;
+        color: $combo_view_text;
+        selection-background-color: $combo_view_sel_bg;
+        selection-color: $combo_view_sel_text;
+        border: 1px solid $input_border;
+    }
+    QSpinBox {
+        background-color: $input_bg;
+        border: 1px solid $input_border;
+        border-radius: 4px;
+        padding: 5px;
+        color: $text;
+        min-height: 25px;
+    }
+    QComboBox:focus, QLineEdit:focus, QSpinBox:focus {
+        border: 1px solid $focus_border;
+    }
+    QPushButton {
+        background-color: $accent_bg;
+        color: $accent_text;
+        border: none;
+        border-radius: 5px;
+        padding: 6px 15px;
+        font-weight: bold;
+        min-height: 28px;
+    }
+    QPushButton:hover {
+        background-color: $accent_hover;
+    }
+    QPushButton:pressed {
+        background-color: $accent_pressed;
+    }
+    QPushButton#secondaryBtn {
+        background-color: $secondary_bg;
+        color: $secondary_text;
+        border: 1px solid $secondary_border;
+    }
+    QPushButton#secondaryBtn:hover {
+        background-color: $secondary_hover;
+    }
+    QTabWidget::pane {
+        border: 1px solid $tab_pane_border;
+        border-radius: 6px;
+        background-color: $tab_pane_bg;
+    }
+    QTabBar::tab {
+        background: $tabbar_bg;
+        border: 1px solid $tabbar_border;
+        padding: 8px 16px;
+        border-top-left-radius: 4px;
+        border-top-right-radius: 4px;
+        color: $tabbar_text;
+    }
+    QTabBar::tab:selected, QTabBar::tab:hover {
+        background: $tab_selected_bg;
+        font-weight: bold;
+        color: $tab_selected_text;
+    }
+    QStatusBar {
+        background: $statusbar_bg;
+        color: $statusbar_text;
+    }
+""")
 
 class TranslationWorker(threading.Thread):
     """Worker thread to run translation without freezing the Qt UI."""
@@ -71,11 +299,8 @@ class ShallotTApp(QMainWindow):
             self.setWindowIcon(QIcon(icon_path))
             
         theme = self.config.get("ui_theme", "dark")
-        if theme == "light":
-            self.setup_light_theme()
-        else:
-            self.setup_dark_theme()
-        
+        self.apply_theme(theme if theme in THEMES else "dark")
+
         self.init_ui()
         self.apply_font_preferences()
         self.setup_system_tray()
@@ -90,237 +315,26 @@ class ShallotTApp(QMainWindow):
         # Keep loading models in background
         QTimer.singleShot(100, self.refresh_ollama_models)
 
-    def setup_dark_theme(self):
-        """Sets an incredibly sleek, dark theme for the application (similar to DeepL/Modern Dark)."""
-        palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(24, 24, 37))
-        palette.setColor(QPalette.ColorRole.WindowText, QColor(205, 214, 244))
-        palette.setColor(QPalette.ColorRole.Base, QColor(30, 30, 46))
-        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(17, 17, 27))
-        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(205, 214, 244))
-        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(17, 17, 27))
-        palette.setColor(QPalette.ColorRole.Text, QColor(205, 214, 244))
-        palette.setColor(QPalette.ColorRole.Button, QColor(45, 47, 72))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor(205, 214, 244))
-        palette.setColor(QPalette.ColorRole.BrightText, QColor(137, 180, 250))
-        palette.setColor(QPalette.ColorRole.Highlight, QColor(137, 180, 250))
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(17, 17, 27))
-        self.setPalette(palette)
-        
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #181825;
-            }
-            QWidget {
-                color: #cdd6f4;
-                font-family: 'Segoe UI', Arial, sans-serif;
-                font-size: 13px;
-            }
-            QGroupBox {
-                border: 1px solid #45475a;
-                border-radius: 8px;
-                margin-top: 10px;
-                font-weight: bold;
-                padding-top: 15px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-            }
-            QTextEdit {
-                background-color: #1e1e2e;
-                border: 1px solid #313244;
-                border-radius: 6px;
-                padding: 10px;
-                color: #cdd6f4;
-            }
-            QTextEdit:focus {
-                border: 1px solid #89b4fa;
-            }
-            QComboBox, QLineEdit {
-                background-color: #313244;
-                border: 1px solid #45475a;
-                border-radius: 4px;
-                padding: 5px 10px;
-                color: #cdd6f4;
-                min-height: 25px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #1e1e2e;
-                color: #cdd6f4;
-                selection-background-color: #313244;
-                selection-color: #89b4fa;
-                border: 1px solid #45475a;
-            }
-            QSpinBox {
-                background-color: #313244;
-                border: 1px solid #45475a;
-                border-radius: 4px;
-                padding: 5px;
-                color: #cdd6f4;
-                min-height: 25px;
-            }
-            QComboBox:focus, QLineEdit:focus, QSpinBox:focus {
-                border: 1px solid #89b4fa;
-            }
-            QPushButton {
-                background-color: #89b4fa;
-                color: #11111b;
-                border: none;
-                border-radius: 5px;
-                padding: 6px 15px;
-                font-weight: bold;
-                min-height: 28px;
-            }
-            QPushButton:hover {
-                background-color: #b4befe;
-            }
-            QPushButton:pressed {
-                background-color: #74c7ec;
-            }
-            QPushButton#secondaryBtn {
-                background-color: #45475a;
-                color: #cdd6f4;
-            }
-            QPushButton#secondaryBtn:hover {
-                background-color: #585b70;
-            }
-            QTabWidget::pane {
-                border: 1px solid #313244;
-                border-radius: 6px;
-                background-color: #1e1e2e;
-            }
-            QTabBar::tab {
-                background: #11111b;
-                border: 1px solid #313244;
-                padding: 8px 16px;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-            }
-            QTabBar::tab:selected, QTabBar::tab:hover {
-                background: #1e1e2e;
-                font-weight: bold;
-            }
-            QStatusBar {
-                background: #11111b;
-                color: #a6adc8;
-            }
-        """)
+    def apply_theme(self, theme_key):
+        """Applies one of the THEMES skins (palette + stylesheet) to the application."""
+        tokens = THEMES.get(theme_key, THEMES["dark"])
 
-    def setup_light_theme(self):
-        """Sets a clean, highly readable light theme (similar to standard desktop apps or DeepL Light)."""
         palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(240, 240, 245))
-        palette.setColor(QPalette.ColorRole.WindowText, QColor(30, 30, 46))
-        palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
-        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(225, 225, 230))
-        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(30, 30, 46))
-        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(255, 255, 255))
-        palette.setColor(QPalette.ColorRole.Text, QColor(30, 30, 46))
-        palette.setColor(QPalette.ColorRole.Button, QColor(220, 220, 225))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor(30, 30, 46))
-        palette.setColor(QPalette.ColorRole.BrightText, QColor(37, 99, 235))
-        palette.setColor(QPalette.ColorRole.Highlight, QColor(37, 99, 235))
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.Window, QColor(tokens["pal_window"]))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(tokens["pal_windowtext"]))
+        palette.setColor(QPalette.ColorRole.Base, QColor(tokens["pal_base"]))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(tokens["pal_alternatebase"]))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(tokens["pal_tooltipbase"]))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(tokens["pal_tooltiptext"]))
+        palette.setColor(QPalette.ColorRole.Text, QColor(tokens["pal_text"]))
+        palette.setColor(QPalette.ColorRole.Button, QColor(tokens["pal_button"]))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(tokens["pal_buttontext"]))
+        palette.setColor(QPalette.ColorRole.BrightText, QColor(tokens["pal_brighttext"]))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(tokens["pal_highlight"]))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(tokens["pal_highlightedtext"]))
         self.setPalette(palette)
-        
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #f0f0f5;
-            }
-            QWidget {
-                color: #1e1e2e;
-                font-family: 'Segoe UI', Arial, sans-serif;
-                font-size: 13px;
-            }
-            QGroupBox {
-                border: 1px solid #cccccc;
-                border-radius: 8px;
-                margin-top: 10px;
-                font-weight: bold;
-                padding-top: 15px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-            }
-            QTextEdit {
-                background-color: #ffffff;
-                border: 1px solid #cccccc;
-                border-radius: 6px;
-                padding: 10px;
-                color: #1e1e2e;
-            }
-            QTextEdit:focus {
-                border: 1px solid #2563eb;
-            }
-            QComboBox, QLineEdit {
-                background-color: #ffffff;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 5px 10px;
-                color: #1e1e2e;
-                min-height: 25px;
-            }
-            QSpinBox {
-                background-color: #ffffff;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 5px;
-                color: #1e1e2e;
-                min-height: 25px;
-            }
-            QComboBox:focus, QLineEdit:focus, QSpinBox:focus {
-                border: 1px solid #2563eb;
-            }
-            QPushButton {
-                background-color: #2563eb;
-                color: #ffffff;
-                border: none;
-                border-radius: 5px;
-                padding: 6px 15px;
-                font-weight: bold;
-                min-height: 28px;
-            }
-            QPushButton:hover {
-                background-color: #1d4ed8;
-            }
-            QPushButton:pressed {
-                background-color: #1e40af;
-            }
-            QPushButton#secondaryBtn {
-                background-color: #e5e5ea;
-                color: #1e1e2e;
-                border: 1px solid #cccccc;
-            }
-            QPushButton#secondaryBtn:hover {
-                background-color: #d1d1d6;
-            }
-            QTabWidget::pane {
-                border: 1px solid #cccccc;
-                border-radius: 6px;
-                background-color: #ffffff;
-            }
-            QTabBar::tab {
-                background: #e5e5ea;
-                border: 1px solid #cccccc;
-                padding: 8px 16px;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                color: #1e1e2e;
-            }
-            QTabBar::tab:selected, QTabBar::tab:hover {
-                background: #ffffff;
-                font-weight: bold;
-                color: #1e1e2e;
-            }
-            QStatusBar {
-                background: #f0f0f5;
-                color: #555555;
-            }
-        """)
+
+        self.setStyleSheet(_STYLESHEET_TEMPLATE.substitute(tokens))
 
     def apply_font_preferences(self):
         """Applies configured font type, size guidelines, and accessibility adjustments."""
@@ -344,7 +358,7 @@ class ShallotTApp(QMainWindow):
         if is_dyslexic:
             # Let's adjust text edits slightly for high contrast helper layout
             theme = self.config.get("ui_theme", "dark")
-            if theme == "light":
+            if theme in ("light", "solarized", "sepia"):
                 contrast_css = f"background-color: #ffffff; border: 3px solid #000000; color: #000000; font-family: '{family}'; font-size: {size}px; font-weight: bold; padding: 10px;"
             else:
                 contrast_css = f"background-color: #000000; border: 3px solid #ffff00; color: #ffffff; font-family: '{family}'; font-size: {size}px; font-weight: bold; padding: 10px;"
@@ -501,9 +515,11 @@ class ShallotTApp(QMainWindow):
         theme_layout = QHBoxLayout()
         theme_layout.addWidget(QLabel("Interface Theme (Thème de l'application) :"))
         self.theme_combo = QComboBox()
-        self.theme_combo.addItems(["Dark Theme (Sombre)", "Light Theme (Clair)"])
-        current_theme = "Light Theme (Clair)" if self.config.get("ui_theme", "dark") == "light" else "Dark Theme (Sombre)"
-        self.theme_combo.setCurrentText(current_theme)
+        self.theme_combo.addItems(list(THEME_LABELS.values()))
+        current_key = self.config.get("ui_theme", "dark")
+        if current_key not in THEME_LABELS:
+            current_key = "dark"
+        self.theme_combo.setCurrentText(THEME_LABELS[current_key])
         theme_layout.addWidget(self.theme_combo)
         og_layout.addLayout(theme_layout)
         
@@ -972,13 +988,11 @@ class ShallotTApp(QMainWindow):
         self.apply_font_preferences()
         
         # Save app Theme selection
-        theme_sel = "light" if "light" in self.theme_combo.currentText().lower() else "dark"
+        selected_label = self.theme_combo.currentText()
+        theme_sel = next((key for key, label in THEME_LABELS.items() if label == selected_label), "dark")
         self.config["ui_theme"] = theme_sel
-        if theme_sel == "light":
-            self.setup_light_theme()
-        else:
-            self.setup_dark_theme()
-            
+        self.apply_theme(theme_sel)
+
         save_config(self.config)
         
         # Re-initialize translator
