@@ -885,31 +885,17 @@ function injectAutoDetectListener() {
       });
     };
 
-    // Translate via direct fetch to Ollama (avoids async callback issues)
-    chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang'], function(cfg) {
-      var url = (cfg.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '');
-      var model = cfg.ollamaModel || 'gemma:latest';
-      var key = cfg.ollamaApiKey || '';
-      var targetL = cfg.targetLang || 'French';
-      var headers = { 'Content-Type': 'application/json' };
-      if (key) headers['Authorization'] = 'Bearer ' + key;
-
-      fetch(url + '/api/generate', {
-        method: 'POST', headers: headers,
-        body: JSON.stringify({
-          model: model, stream: false,
-          prompt: 'Translate the following text to ' + targetL + '. Output ONLY the translation, no other text:\n\n' + text,
-          options: { temperature: 0.1 }
-        })
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        res.textContent = (data.response || text).trim();
-      })
-      .catch(function(err) {
+    // Use the same secure-translate pipeline as right-click (proven to work)
+    chrome.runtime.sendMessage({ action: 'secure-translate', text: text }, function(rsp) {
+      if (chrome.runtime.lastError) {
         res.style.color = '#f38ba8';
-        res.textContent = 'Erreur: ' + err.message;
-      });
+        res.textContent = 'Err: ' + chrome.runtime.lastError.message;
+      } else if (rsp && rsp.success) {
+        res.textContent = rsp.translation;
+      } else {
+        res.style.color = '#f38ba8';
+        res.textContent = 'Err: ' + (rsp ? rsp.error : 'no response');
+      }
     });
 
     // Close on outside click
