@@ -827,6 +827,82 @@ function injectAutoDetectListener() {
   var hintBtn = null;
   var currentSelection = '';
 
+  // Creates the translation bubble inline — NO background injection needed
+  function createInlineBubble(text) {
+    var old = document.getElementById('shallott-bubble-widget');
+    if (old) old.remove();
+
+    var b = document.createElement('div');
+    b.id = 'shallott-bubble-widget';
+    b.style.cssText = 'position:fixed;z-index:999999999;background:#181c24;color:#c9ceef;'
+      + 'border:1px solid #ffaa33;border-radius:8px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,0.5);'
+      + 'width:340px;min-height:120px;font-family:"Segoe UI",sans-serif;font-size:12px;'
+      + 'display:flex;flex-direction:column;resize:both;overflow:hidden;';
+
+    // Position near selection
+    var sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      var r = sel.getRangeAt(0).getBoundingClientRect();
+      b.style.top = Math.min(r.bottom + 8 + window.scrollY, window.innerHeight - 200) + 'px';
+      b.style.left = Math.min(r.left + window.scrollX, window.innerWidth - 360) + 'px';
+    } else {
+      b.style.top = '80px'; b.style.left = '80px';
+    }
+
+    // Header
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;justify-content:space-between;border-bottom:1px solid #2e3440;padding-bottom:6px;margin-bottom:8px;cursor:move;';
+    hdr.innerHTML = '<span style="color:#ffaa33;font-weight:bold;">ShallotT 🧅</span><span class="s-close" style="cursor:pointer;padding:2px 6px;">✕</span>';
+    b.appendChild(hdr);
+
+    // Source preview
+    var src = document.createElement('div');
+    src.style.cssText = 'color:#707a8a;font-style:italic;margin-bottom:5px;max-height:40px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    src.textContent = '"' + (text.length > 100 ? text.substring(0,100)+'…' : text) + '"';
+    b.appendChild(src);
+
+    // Result area
+    var res = document.createElement('div');
+    res.style.cssText = 'color:#a6e3a1;line-height:1.5;max-height:180px;overflow-y:auto;word-break:break-word;white-space:pre-wrap;flex:1;min-height:0;';
+    res.textContent = 'Traduction en cours...';
+    b.appendChild(res);
+
+    // Actions bar
+    var act = document.createElement('div');
+    act.style.cssText = 'display:flex;justify-content:space-between;margin-top:8px;border-top:1px solid #2e3440;padding-top:6px;';
+    act.innerHTML = '<button class="s-copy" style="background:#585b70;color:#cdd6f4;border:none;border-radius:3px;padding:3px 8px;font-size:10px;cursor:pointer;">📋 Copier</button><span style="font-size:9px;color:#707a8a;">Gemma API</span>';
+    b.appendChild(act);
+
+    // Add to page NOW so querySelector works
+    document.body.appendChild(b);
+
+    // Wire up events via querySelector on the bubble
+    b.querySelector('.s-close').onclick = function() { b.remove(); };
+    b.querySelector('.s-copy').onclick = function() {
+      navigator.clipboard.writeText(res.textContent).then(function() {
+        b.querySelector('.s-copy').textContent = '✓ Copié !';
+        setTimeout(function() { b.querySelector('.s-copy').textContent = '📋 Copier'; }, 2000);
+      });
+    };
+
+    // Translate
+    chrome.runtime.sendMessage({ action: 'secure-translate', text: text }, function(rsp) {
+      if (rsp && rsp.success) {
+        res.textContent = rsp.translation;
+      } else {
+        res.style.color = '#f38ba8';
+        res.textContent = 'Erreur: ' + (rsp ? rsp.error : 'inconnue');
+      }
+    });
+
+    // Close on outside click
+    setTimeout(function() {
+      document.addEventListener('mousedown', function outer(e) {
+        if (!b.contains(e.target)) { b.remove(); document.removeEventListener('mousedown', outer); }
+      });
+    }, 300);
+  }
+
   function removeHint() {
     if (hintBtn) { hintBtn.remove(); hintBtn = null; }
     currentSelection = '';
@@ -856,8 +932,10 @@ function injectAutoDetectListener() {
     hintBtn.style.top = Math.max(y - 32, 5) + 'px';
     hintBtn.onclick = function(e) {
       e.stopPropagation(); e.preventDefault();
-      chrome.runtime.sendMessage({ action: 'auto-detect-translate', text: currentSelection });
+      var text = currentSelection;
       removeHint();
+      // Create bubble DIRECTLY — no background round-trip for injection
+      createInlineBubble(text);
     };
     document.body.appendChild(hintBtn);
     setTimeout(function() {
