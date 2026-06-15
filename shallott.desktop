@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=ShallotT
+Comment=Traducteur IA Local (Ollama + Gemma)
+Exec=/home/jeremie/ShallotT/ShallotT/.venv/bin/python /home/jeremie/ShallotT/ShallotT/main.py
+Icon=/home/jeremie/ShallotT/ShallotT/src/shallot.png
+Terminal=false
+Type=Application
+Categories=Utility;Translation;
+StartupWMClass=shallott

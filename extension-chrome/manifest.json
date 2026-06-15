@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ShallotT - Traducteur IA Local",
-  "version": "1.0.3",
-  "description": "Traducteur local et ultra-rapide alimenté avec l'IA utilisant Ollama et Gemma pour traduire instantanément.",
+  "version": "1.0.7",
+  "description": "Traducteur local et ultra-rapide aliment\u00e9 avec l'IA utilisant Ollama et Gemma pour traduire instantan\u00e9ment.",
   "permissions": [
     "storage",
     "contextMenus",
@@ -25,9 +25,6 @@
       "128": "icons/icon128.png"
     }
   },
-  "background": {
-    "service_worker": "src/background.js"
-  },
   "declarative_net_request": {
     "rule_resources": [
       {
@@ -37,18 +34,46 @@
       }
     ]
   },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/lib/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "commands": {
     "_execute_action": {
       "suggested_key": {
         "default": "Ctrl+Shift+Y"
       },
-      "description": "Ouvrir la fenêtre de traduction ShallotT"
+      "description": "Ouvrir la fen\u00eatre de traduction ShallotT"
     },
     "translate-selection": {
       "suggested_key": {
         "default": "Alt+Shift+T"
       },
-      "description": "Traduire le texte sélectionné"
+      "description": "Traduire le texte s\u00e9lectionn\u00e9"
+    },
+    "quick-translate": {
+      "suggested_key": {
+        "default": "Ctrl+F9"
+      },
+      "description": "Traduction rapide : Ctrl+F9 puis une lettre pour la langue (E=English, F=Fran\u00e7ais, etc.)"
+    },
+    "ocr-screenshot": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F8"
+      },
+      "description": "OCR capture d'\u00e9cran \u2192 traduction (Tesseract.js WASM int\u00e9gr\u00e9)"
+    },
+    "translate-page": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F10"
+      },
+      "description": "Traduire toute la page web en conservant la mise en page (toggle on/off)"
     }
   },
   "icons": {
@@ -56,5 +81,8 @@
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "src/background.js"
   }
 }

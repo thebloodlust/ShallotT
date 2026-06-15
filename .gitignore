@@ -3,7 +3,8 @@ __pycache__/
 *.pyc
 build/
 dist/
-*.spec
+# PyInstaller spec is committed — keep it tracked
+# *.spec
 .vscode/
 .DS_Store
 *.ipynb

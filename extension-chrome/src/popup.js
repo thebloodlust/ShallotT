@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // Force popup width to 400px — Firefox sometimes sizes based on content
+  document.documentElement.style.width = '400px';
+  document.documentElement.style.height = '450px';
+  document.body.style.maxWidth = '100%';
+
   const extVersion = document.getElementById('extVersion');
   if (extVersion) {
     extVersion.textContent = `v${chrome.runtime.getManifest().version}`;
@@ -98,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load saved settings & selections
   chrome.storage.local.get([
-    'ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'srcLang', 'targetLang', 'lastQueryText', 'customContextMenuLang', 'maxCharacters', 'extFontSize', 'extFontFamily', 'extDyslexicMode'
+    'ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'srcLang', 'targetLang', 'lastQueryText', 'customContextMenuLang', 'maxCharacters', 'extFontSize', 'extFontFamily', 'extDyslexicMode', 'quickLangMap'
   ], (result) => {
     if (result.ollamaUrl) ollamaUrl.value = result.ollamaUrl;
     if (result.ollamaApiKey) ollamaApiKey.value = result.ollamaApiKey;
@@ -119,7 +124,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (result.extDyslexicMode !== undefined) {
       document.getElementById('extDyslexicMode').checked = result.extDyslexicMode;
     }
-    
+    if (result.quickLangMap) {
+      document.getElementById('quickLangMap').value = result.quickLangMap;
+    }
+
     // Apply font settings load trigger
     applyPopupFontPreferences(result);
     
@@ -149,12 +157,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Settings visibility toggle
+  // Settings visibility toggle — overlay mode, no layout changes
   toggleSettings.addEventListener('click', () => {
     const isVisible = settingsPanel.style.display === 'block';
     settingsPanel.style.display = isVisible ? 'none' : 'block';
     if (!isVisible) {
-      // Reload models on opening options panel
       loadOllamaModels(ollamaModel.value);
     }
   });
@@ -173,7 +180,8 @@ document.addEventListener('DOMContentLoaded', () => {
       maxCharacters: parseInt(document.getElementById('maxCharacters').value, 10) || 10000,
       extFontSize: fontSizeVal,
       extFontFamily: fontFamilyVal,
-      extDyslexicMode: dyslexicVal
+      extDyslexicMode: dyslexicVal,
+      quickLangMap: document.getElementById('quickLangMap').value.trim()
     }, () => {
       // Re-apply immediately in popup
       applyPopupFontPreferences({

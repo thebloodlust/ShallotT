@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "ShallotT - Traducteur IA Local",
-  "version": "1.0.3",
+  "version": "1.0.7",
   "browser_specific_settings": {
     "gecko": {
       "id": "{28ca131e-ab92-4713-ab9c-efffcfd19825}",
@@ -17,6 +17,7 @@
     "activeTab",
     "storage",
     "contextMenus",
+    "scripting",
     "webRequest",
     "webRequestBlocking",
     "http://localhost:11434/*",
@@ -24,6 +25,7 @@
     "http://192.168.1.12:11434/*",
     "<all_urls>"
   ],
+  "content_security_policy": "script-src 'self' https://cdn.jsdelivr.net; object-src 'self'",
   "browser_action": {
     "default_popup": "src/popup.html",
     "default_icon": {
@@ -49,6 +51,24 @@
         "default": "Alt+Shift+T"
       },
       "description": "Traduire le texte sélectionné"
+    },
+    "quick-translate": {
+      "suggested_key": {
+        "default": "Ctrl+F9"
+      },
+      "description": "Traduction rapide : Ctrl+F9 puis une lettre pour la langue (E=English, F=Français, etc.)"
+    },
+    "ocr-screenshot": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F8"
+      },
+      "description": "OCR capture d'écran → traduction (Tesseract.js WASM intégré)"
+    },
+    "translate-page": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F10"
+      },
+      "description": "Traduire toute la page web en conservant la mise en page (toggle on/off)"
     }
   },
   "icons": {

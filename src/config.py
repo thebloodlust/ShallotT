@@ -15,7 +15,9 @@ DEFAULT_CONFIG = {
     "max_characters": 10000, # Limite par défaut à 10 000 lettres pour optimiser la vitesse de traitement
     "shortcut_translate": "ctrl+c+c",
     "shortcut_ocr": "ctrl+f8",
-    "ocr_engine": "tesseract" # "tesseract" ou "powertoys" (uniquement sous Windows)
+    "ocr_engine": "tesseract", # "tesseract" ou "powertoys" (uniquement sous Windows)
+    "audio_source": "microphone", # "microphone" ou "loopback" (WASAPI system audio)
+    "audio_model": "tiny.en", # Modèle Whisper: tiny, tiny.en, small, medium
 }
 
 # Cross-platform config path (APPDATA on Windows, or ~/.config on Unix)

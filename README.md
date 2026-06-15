@@ -172,26 +172,58 @@ Si vous souhaitez exposer votre serveur à distance de manière sécurisée sans
 
 ## 🛠️ Compilation sous Windows en `.exe` Autonome
 
-Vous pouvez compiler l'application Python sous Windows afin d'en faire un fichier exécutable `.exe` autonome. Cela vous permet de l'utiliser ou de le distribuer sans avoir besoin d'installer Python sur les machines cibles.
+Vous pouvez compiler l'application Python sous Windows afin d'en faire un exécutable autonome. Cela vous permet de l'utiliser ou de le distribuer sans avoir besoin d'installer Python sur les machines cibles.
 
-### 1. Générer le fichier `.exe`
+### 1. Générer l'exécutable
+
 Pour faciliter cela, un script d'automatisation [build_exe.py](build_exe.py) est inclus. Ouvrez votre terminal PowerShell et exécutez :
+
+**Mode recommandé (one-folder, compatible antivirus) :**
 ```powershell
 python build_exe.py
 ```
-Ce script installe PyInstaller, nettoie les anciens caches et compile l'interface dans un exécutable standalone optimisé. Vous retrouverez l'exécutable généré dans le sous-dossier `dist\ShallotT.exe`.
+Ce mode produit un dossier `dist\ShallotT\` contenant l'exécutable et toutes ses dépendances.
+✅ **Faible risque de faux-positif antivirus** — pas de compression UPX, pas d'auto-extraction.
 
-### 2. Créer un installeur d'application Windows (`.msi` ou `.exe` d'installation)
+**Mode fichier unique (si vous avez vraiment besoin d'un seul `.exe`) :**
+```powershell
+python build_exe.py --onefile
+```
+⚠️ Le mode `--onefile` peut déclencher des faux-positifs antivirus (Windows Defender, Kaspersky, etc.) car l'auto-extraction PyInstaller ressemble à un comportement de malware. Si votre antivirus bloque le `.exe`, utilisez le mode par défaut sans `--onefile`.
+
+**Options avancées :**
+```powershell
+python build_exe.py --console        # Affiche la console (débug)
+python build_exe.py --onefile --upx  # Fichier unique + compression UPX (risque AV maximal)
+```
+
+### 2. Réduire les faux-positifs antivirus
+
+Les exécutables PyInstaller sont parfois signalés à tort par les antivirus. Voici les bonnes pratiques appliquées par défaut :
+
+| Pratique | Effet |
+|---|---|
+| Mode **one-folder** (`--onedir`) par défaut | Les fichiers sont visibles, pas d'auto-extraction suspecte |
+| **UPX désactivé** par défaut | La compression UPX est un marqueur commun de malware |
+| **Métadonnées Windows** intégrées | CompanyName, ProductName, FileDescription, version — l'exécutable paraît légitime |
+| **Code signing** (à faire manuellement) | Un certificat EV supprime quasi tous les faux-positifs |
+
+Si votre antivirus bloque quand même l'exécutable :
+1. Soumettez le fichier pour analyse sur le [portail Microsoft Defender](https://www.microsoft.com/en-us/wdsi/filesubmission)
+2. Ajoutez une exclusion dans votre antivirus pour le dossier `dist\ShallotT\`
+3. Signez l'exécutable avec un certificat de signature de code (Extended Validation)
+
+### 3. Créer un installeur d'application Windows (`.msi` ou `.exe` d'installation)
 Pour distribuer ShallotT sous forme d'installateur classique de type setup ou MSI, nous vous conseillons d'utiliser des outils de packaging standard et extrêmement robustes :
 
 *   **Inno Setup (Recommandé - .exe d'installation)** :
     1. Téléchargez et installez gratuitement [Inno Setup](https://jrsoftware.org/isinfo.php).
     2. Lancez le *Inno Setup Script Wizard*.
-    3. Sélectionnez le fichier exécutable de sortie `dist\ShallotT.exe` généré à l'étape précédente.
+    3. Sélectionnez le dossier `dist\ShallotT\` (mode one-folder) ou `dist\ShallotT.exe` (mode onefile).
     4. Indiquez au Wizard d'ajouter également d'autres raccourcis, une icône de bureau ou de configurer le démarrage automatique au boot de Windows.
     5. Compilez le script : vous obtiendrez un installateur professionnel `setup.exe` léger et prêt pour l'installation d'une simple pression sur "Suivant".
 *   **WiX Toolset (Pour générer un fichier `.msi`)** :
     1. Si votre d'infrastructure informatique d'entreprise impose le format `.msi` pour le déploiement de masse (Active Directory/GPO/Intune), téléchargez [WiX Toolset](https://wixtoolset.org/).
-    2. Créez un fichier de description de package `.wxs` pointant sur votre dossier `dist\ShallotT.exe`.
+    2. Créez un fichier de description de package `.wxs` pointant sur le contenu de `dist\ShallotT\` (mode one-folder).
     3. Compilez-le à l'aide des outils `candle` et `light` pour obtenir votre fichier `.msi`.
 

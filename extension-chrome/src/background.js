@@ -1,10 +1,76 @@
-// Background service worker for Chrome (Manifest V3)
-//
-// Note: Origin/Referer rewriting for Ollama requests (so the local server's
-// CORS check accepts the extension) is handled declaratively via
-// declarativeNetRequest, see rules.json. Response CORS headers don't need
-// rewriting because fetches issued from this background context with
-// host_permissions bypass the browser's CORS checks entirely.
+// Background service worker for Chrome/Firefox Extension
+
+// Intercept and bypass CORS both at Request (Ollama check) and Response (Browser check) levels
+if (chrome.webRequest) {
+  // 1. Overwrite Origin / Referer of requests going to Ollama to make it believe we are a simple local curl/localhost call
+  chrome.webRequest.onBeforeSendHeaders.addListener(
+    function(details) {
+      let isOllamaMatch = details.url.includes("11434") || details.url.includes("/api/generate") || details.url.includes("/api/tags");
+      if (isOllamaMatch) {
+        let headers = details.requestHeaders;
+        let originIndex = -1;
+        let refererIndex = -1;
+        for (let i = 0; i < headers.length; i++) {
+          let nameLower = headers[i].name.toLowerCase();
+          if (nameLower === "origin") originIndex = i;
+          if (nameLower === "referer") refererIndex = i;
+        }
+
+        // Change or insert the Origin to http://localhost:11434 to make Ollama happy (it passes all checks)
+        if (originIndex !== -1) {
+          headers[originIndex].value = "http://localhost:11434";
+        } else {
+          headers.push({ name: "Origin", value: "http://localhost:11434" });
+        }
+
+        if (refererIndex !== -1) {
+          headers[refererIndex].value = "http://localhost:11434/";
+        } else {
+          headers.push({ name: "Referer", value: "http://localhost:11434/" });
+        }
+
+        return { requestHeaders: headers };
+      }
+    },
+    { urls: ["<all_urls>"] },
+    ["blocking", "requestHeaders"]
+  );
+
+  // 2. Allow everything at the browser inspection level by injecting wildcard Access-Control-Allow-Origin headers
+  chrome.webRequest.onHeadersReceived.addListener(
+    function(details) {
+      let isOllamaMatch = details.url.includes("11434") || details.url.includes("/api/generate") || details.url.includes("/api/tags");
+      if (isOllamaMatch) {
+        let headers = details.responseHeaders;
+        let hasAcao = false;
+        let hasAcah = false;
+        
+        for (let i = 0; i < headers.length; i++) {
+          let nameLower = headers[i].name.toLowerCase();
+          if (nameLower === "access-control-allow-origin") {
+            headers[i].value = "*";
+            hasAcao = true;
+          }
+          if (nameLower === "access-control-allow-headers") {
+            headers[i].value = "Authorization, Content-Type, User-Agent, Accept";
+            hasAcah = true;
+          }
+        }
+
+        if (!hasAcao) {
+          headers.push({ name: "Access-Control-Allow-Origin", value: "*" });
+        }
+        if (!hasAcah) {
+          headers.push({ name: "Access-Control-Allow-Headers", value: "Authorization, Content-Type, User-Agent, Accept" });
+        }
+
+        return { responseHeaders: headers };
+      }
+    },
+    { urls: ["<all_urls>"] },
+    ["blocking", "responseHeaders"]
+  );
+}
 
 // Default host configurations
 const DEFAULT_URL = "http://localhost:11434";
@@ -166,12 +232,17 @@ function normalizeUrl(url) {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "secure-translate") {
     const trackingId = request.trackingId || "none";
-    chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang', 'maxCharacters'], async (stored) => {
+    chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang', '_contextLang', 'maxCharacters'], async (stored) => {
       const url = normalizeUrl(stored.ollamaUrl);
       const model = stored.ollamaModel || "gemma:latest";
       const key = stored.ollamaApiKey || "";
-      const targetL = stored.targetLang || "French";
+      // One-shot context menu override, cleared after use
+      const targetL = stored._contextLang || stored.targetLang || "French";
       const maxChars = stored.maxCharacters || 10000;
+      // Clear the one-shot override so next translation uses the user's preference
+      if (stored._contextLang) {
+        chrome.storage.local.remove('_contextLang');
+      }
 
       let textToTranslate = request.text || "";
       let truncatedNote = "";
@@ -282,6 +353,251 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ success: false, error: err.message });
       });
     return true; // Keep sendResponse channel active
+  } else if (request.action === "translate-page-batch") {
+    // Batch-translate an array of texts for full-page translation
+    const texts = request.texts || [];
+    if (texts.length === 0) {
+      sendResponse({ translations: [] });
+      return;
+    }
+
+    // Use ||| as delimiter — more likely to be preserved by models
+    const DELIM = ' ||| ';
+    const combined = texts.join(DELIM);
+
+    chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang'], (settings) => {
+      const url = (settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '');
+      const model = settings.ollamaModel || 'gemma:latest';
+      const apiKey = settings.ollamaApiKey || '';
+      const targetLang = settings.targetLang || 'French';
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+      const body = JSON.stringify({
+        model: model,
+        prompt: `Translate each of the following texts to ${targetLang}. Return ONLY the translations, one per line, in the same order. Do NOT add any commentary, numbering, or prefixes. Here are the texts:\n\n${combined}`,
+        stream: false,
+        options: { temperature: 0.1 }
+      });
+
+      fetch(`${url}/api/generate`, { method: 'POST', headers, body })
+        .then(r => r.json())
+        .then(data => {
+          const response = data.response || '';
+          // Split by newlines and filter empty lines
+          let translations = response.split('\n')
+            .map(s => s.trim())
+            .filter(s => s.length > 0)
+            // Remove common prefixes like "1. ", "- ", etc.
+            .map(s => s.replace(/^\d+[\.\)]\s*/, '').replace(/^[-•]\s*/, ''));
+          // Pad with originals if we got fewer translations
+          while (translations.length < texts.length) {
+            translations.push(texts[translations.length] || '');
+          }
+          sendResponse({ translations: translations.slice(0, texts.length) });
+        })
+        .catch(err => {
+          console.log('[ShallotT] Page translate error:', err.message);
+          sendResponse({ error: err.message, translations: texts });
+        });
+    });
+    return true; // async
+  } else if (request.action === "translate-big-batch") {
+    // Big-batch translation (30 texts at once) — bypasses character limits
+    const text = request.text || '';
+    const count = request.count || 1;
+    if (!text.trim()) { sendResponse({ success: false }); return; }
+
+    chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang', '_contextLang'], (settings) => {
+      const url = (settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '');
+      const model = settings.ollamaModel || 'gemma:latest';
+      const apiKey = settings.ollamaApiKey || '';
+      const targetLang = settings._contextLang || settings.targetLang || 'French';
+      if (settings._contextLang) chrome.storage.local.remove('_contextLang');
+      const headers = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+      // No token limit — use num_predict: -1 for unlimited
+      fetch(`${url}/api/generate`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          model, stream: false,
+          prompt: `Translate each numbered line to ${targetLang}. Keep the [N] prefix on each translation. Output NOTHING else:\n\n${text}`,
+          options: { temperature: 0.1, num_predict: 4096 }
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        const raw = data.response || '';
+        // Parse: extract [N] prefixed lines
+        const translations = [];
+        const lines = raw.split('\n');
+        for (const line of lines) {
+          const m = line.match(/^\[(\d+)\]\s*(.+)/);
+          if (m) {
+            const idx = parseInt(m[1]);
+            translations[idx] = m[2].trim();
+          }
+        }
+        // Fill gaps (filter out undefined)
+        const result = [];
+        for (let i = 0; i < count; i++) {
+          result.push(translations[i] || '');
+        }
+        sendResponse({ success: true, translations: result });
+      })
+      .catch(err => {
+        console.log('[ShallotT] Big batch failed:', err.message);
+        sendResponse({ success: false, error: err.message });
+      });
+    });
+    return true; // async
+  } else if (request.action === "secure-translate-page") {
+    // Single-text translation for full-page translate (reuses existing pipeline)
+    const text = request.text || '';
+    if (!text.trim()) {
+      sendResponse({ success: false, error: 'Empty text' });
+      return;
+    }
+    chrome.storage.local.get(['ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'targetLang'], (settings) => {
+      const url = (settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '');
+      const model = settings.ollamaModel || 'gemma:latest';
+      const apiKey = settings.ollamaApiKey || '';
+      const targetLang = settings.targetLang || 'French';
+      const headers = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+      fetch(`${url}/api/generate`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          model, stream: false,
+          prompt: `Translate the following text to ${targetLang}. Return ONLY the translation, no commentary:\n\n${text}`,
+          options: { temperature: 0.1 }
+        })
+      })
+      .then(r => r.json())
+      .then(data => sendResponse({ success: true, translation: (data.response || text).trim() }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    });
+    return true; // async
+  } else if (request.action === "capture-tab") {
+    // Capture the active tab as a data URL for OCR processing
+    chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
+      sendResponse({ dataUrl: dataUrl || null });
+    });
+    return true; // async sendResponse
+  } else if (request.action === "ocr-result") {
+    // OCR content script returned text — translate it
+    const text = request.text;
+    if (text && text.trim()) {
+      chrome.storage.local.set({ lastQueryText: text }, () => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs[0] && tabs[0].id) {
+            if (chrome.scripting) {
+              chrome.scripting.executeScript({
+                target: { tabId: tabs[0].id },
+                func: displayInlineTranslationBubble,
+                args: [text]
+              }).catch(() => {});
+            } else {
+              chrome.tabs.executeScript(tabs[0].id, {
+                code: `(${displayInlineTranslationBubble.toString()})(${JSON.stringify(text)})`
+              });
+            }
+          }
+        });
+      });
+    }
+  } else if (request.action === "quick-lang-key") {
+    // Received the letter key from the injected quick-lang listener
+    const key = request.key;
+    if (!key) return; // User pressed Escape or timeout
+
+    chrome.storage.local.get(['quickLangMap', 'quickTransSel'], (res) => {
+      const defaultMap = { e: 'English', f: 'French', s: 'Spanish', g: 'German', i: 'Italian', p: 'Portuguese', c: 'Chinese', j: 'Japanese', r: 'Russian' };
+      const rawMap = res.quickLangMap || '';
+      const userMap = parseQuickLangMap(rawMap) || defaultMap;
+      const targetLang = userMap[key.toLowerCase()];
+      const selectedText = res.quickTransSel || '';
+
+      if (targetLang && selectedText) {
+        chrome.storage.local.set({ targetLang: targetLang, lastQueryText: selectedText }, () => {
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs[0] && tabs[0].id) {
+              if (chrome.scripting) {
+                chrome.scripting.executeScript({
+                  target: { tabId: tabs[0].id },
+                  func: displayInlineTranslationBubble,
+                  args: [selectedText]
+                }).catch(() => {});
+              } else {
+                chrome.tabs.executeScript(tabs[0].id, {
+                  code: `(${displayInlineTranslationBubble.toString()})(${JSON.stringify(selectedText)})`
+                });
+              }
+            }
+          });
+        });
+      }
+    });
+  } else if (request.action === "auto-detect-translate") {
+    // User clicked the floating "Translate?" button — show the inline translation bubble
+    const text = request.text;
+    if (!text) return;
+    // Use the sender's tab ID (reliable, same as context menu)
+    const tabId = (sender && sender.tab) ? sender.tab.id : null;
+    if (!tabId) return;
+    chrome.storage.local.set({ lastQueryText: text }, () => {
+      // Same injection as right-click: chrome.tabs.executeScript with stringified function
+      chrome.tabs.executeScript(tabId, {
+        code: `(${displayInlineTranslationBubble.toString()})(${JSON.stringify(text)})`
+      }, () => { if (chrome.runtime.lastError) { /* ignore */ } });
+    });
+  }
+});
+
+// Inject auto-detect listener on existing tabs and new navigations
+function injectAutoDetectOnAllTabs() {
+  chrome.tabs.query({}, (tabs) => {
+    tabs.forEach(tab => {
+      if (tab.id && tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
+        if (chrome.scripting) {
+          chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: injectAutoDetectListener
+          }).catch(() => {});
+        } else {
+          // MV2 fallback
+          chrome.tabs.executeScript(tab.id, {
+            code: `(${injectAutoDetectListener.toString()})()`
+          }, () => { if (chrome.runtime.lastError) {} });
+        }
+      }
+    });
+  });
+}
+
+// Run on startup, install, and also immediately when background script loads
+chrome.runtime.onStartup.addListener(injectAutoDetectOnAllTabs);
+chrome.runtime.onInstalled.addListener(injectAutoDetectOnAllTabs);
+// Also inject now for any already-open tabs (background just loaded = extension reloaded)
+setTimeout(injectAutoDetectOnAllTabs, 2000);
+
+// Listen for new tab navigations to inject listener
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url &&
+      (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
+    if (chrome.scripting) {
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: injectAutoDetectListener
+      }).catch(() => {});
+    } else {
+      // MV2 fallback
+      chrome.tabs.executeScript(tabId, {
+        code: `(${injectAutoDetectListener.toString()})()`
+      }, () => { if (chrome.runtime.lastError) {} });
+    }
   }
 });
 
@@ -298,28 +614,96 @@ chrome.commands.onCommand.addListener((command) => {
           }, (res) => {
             if (res && res[0] && res[0].result) {
               const selectedText = res[0].result;
-              // Store selected text and open popup
+              // Show inline translation bubble (same as right-click)
               chrome.storage.local.set({ lastQueryText: selectedText }, () => {
-                const action = chrome.action || chrome.browserAction;
-                action.openPopup ? action.openPopup() : alert("Selection capturée, cliquez sur l'icône de l'extension ShallotT pour traduire !");
+                chrome.scripting.executeScript({
+                  target: { tabId: tabs[0].id },
+                  func: displayInlineTranslationBubble,
+                  args: [selectedText]
+                }).catch(() => {});
               });
             }
           });
         } else {
-          // MSV2 Fallback for tabs injection
+          // MV2 Fallback for tabs injection
           chrome.tabs.executeScript(tabs[0].id, {
             code: "window.getSelection().toString()"
           }, (res) => {
             if (res && res[0]) {
               const selectedText = res[0];
               chrome.storage.local.set({ lastQueryText: selectedText }, () => {
-                const action = chrome.action || chrome.browserAction;
-                action.openPopup ? action.openPopup() : alert("Selection capturée, cliquez sur l'icône de l'extension ShallotT pour traduire !");
+                chrome.tabs.executeScript(tabs[0].id, {
+                  code: `(${displayInlineTranslationBubble.toString()})(${JSON.stringify(selectedText)})`
+                });
               });
             }
           });
         }
       }
+    });
+  } else if (command === "quick-translate") {
+    // Two-step shortcut: Ctrl+F9 then a letter for quick language selection
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0] && tabs[0].id) {
+        const injectListener = () => {
+          if (chrome.scripting) {
+            chrome.scripting.executeScript({
+              target: { tabId: tabs[0].id },
+              func: injectQuickLangListener
+            }).catch(() => {});
+          } else {
+            chrome.tabs.executeScript(tabs[0].id, {
+              code: `(${injectQuickLangListener.toString()})()`
+            });
+          }
+        };
+        // Get selection text first, store it, then inject the key listener
+        if (chrome.scripting) {
+          chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            func: () => window.getSelection().toString()
+          }, (res) => {
+            if (res && res[0] && res[0].result) {
+              chrome.storage.local.set({ quickTransSel: res[0].result }, injectListener);
+            } else {
+              injectListener();
+            }
+          });
+        } else {
+          // MV2 fallback
+          chrome.tabs.executeScript(tabs[0].id, {
+            code: "window.getSelection().toString()"
+          }, (res) => {
+            if (res && res[0]) {
+              chrome.storage.local.set({ quickTransSel: res[0] }, injectListener);
+            } else {
+              injectListener();
+            }
+          });
+        }
+      }
+    });
+  } else if (command === "ocr-screenshot") {
+    // Inject Tesseract.js first, then OCR overlay (same isolated world, shared global)
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0] || !tabs[0].id) return;
+      chrome.scripting.executeScript({
+        target: { tabId: tabs[0].id },
+        files: ['src/lib/tesseract.min.js', 'src/ocr_content.js']
+      }).catch(err => {
+        console.log("[ShallotT] OCR injection failed:", err.message);
+      });
+    });
+  } else if (command === "translate-page") {
+    // Full page translation — inject content script
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0] || !tabs[0].id) return;
+      chrome.scripting.executeScript({
+        target: { tabId: tabs[0].id },
+        files: ['src/translate_page.js']
+      }).catch(err => {
+        console.log("[ShallotT] Page translate injection failed:", err.message);
+      });
     });
   }
 });
@@ -358,18 +742,163 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       }
     };
 
-    // Prepare config to update in local storage
+    // Use the override for THIS translation only — don't permanently change targetLang
     const configToUpdate = { lastQueryText: selectedText };
     if (targetLangOverride) {
-      configToUpdate.targetLang = targetLangOverride;
+      configToUpdate._contextLang = targetLangOverride; // one-shot, cleared after use
     }
 
-    // Direct translation run after configuration updates
     chrome.storage.local.set(configToUpdate, () => {
       runTranslation();
     });
   }
 });
+
+// Parse the user's quick-lang mapping string: "E=English, F=French, ..."
+function parseQuickLangMap(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const map = {};
+  const pairs = raw.split(',');
+  for (const pair of pairs) {
+    const trimmed = pair.trim();
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx > 0) {
+      const key = trimmed.substring(0, eqIdx).trim().toLowerCase();
+      const lang = trimmed.substring(eqIdx + 1).trim();
+      if (key.length === 1 && lang) {
+        map[key] = lang;
+      }
+    }
+  }
+  return Object.keys(map).length > 0 ? map : null;
+}
+
+// Injected into the page by the quick-translate command (Ctrl+F9).
+// Shows a small indicator and listens for a single letter keypress
+// to select the target language.
+function injectQuickLangListener() {
+  const old = document.getElementById('shallott-quicklang-indicator');
+  if (old) old.remove();
+
+  const indicator = document.createElement('div');
+  indicator.id = 'shallott-quicklang-indicator';
+  indicator.style.cssText = 'position:fixed;top:12px;right:12px;background:#181c24;color:#ffaa33;padding:10px 16px;border:2px solid #ffaa33;border-radius:8px;z-index:999999999;font-size:13px;font-family:"Segoe UI",system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,0.5);pointer-events:none;';
+  indicator.textContent = '🎯 Appuyez sur une lettre pour la langue cible… (Échap pour annuler)';
+  document.body.appendChild(indicator);
+
+  const handler = function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    var key = e.key.toLowerCase();
+    if (key.length === 1 && key >= 'a' && key <= 'z') {
+      e.preventDefault();
+      e.stopPropagation();
+      document.removeEventListener('keydown', handler, true);
+      document.removeEventListener('keydown', escHandler, true);
+      indicator.remove();
+      chrome.runtime.sendMessage({ action: 'quick-lang-key', key: key });
+    }
+  };
+
+  var escHandler = function(e) {
+    if (e.key === 'Escape') {
+      document.removeEventListener('keydown', handler, true);
+      document.removeEventListener('keydown', escHandler, true);
+      indicator.remove();
+      chrome.runtime.sendMessage({ action: 'quick-lang-key', key: null });
+    }
+  };
+
+  document.addEventListener('keydown', handler, true);
+  document.addEventListener('keydown', escHandler, true);
+
+  setTimeout(function() {
+    document.removeEventListener('keydown', handler, true);
+    document.removeEventListener('keydown', escHandler, true);
+    if (indicator.parentNode) indicator.remove();
+  }, 8000);
+}
+
+// Auto-detect language on text selection — shows a small floating "Translate?" button
+// when the user selects text that appears to be in a foreign language.
+function injectAutoDetectListener() {
+  if (window.__shallottAutoDetectActive) return;
+  window.__shallottAutoDetectActive = true;
+
+  var hintBtn = null;
+  var currentSelection = '';
+
+  function removeHint() {
+    if (hintBtn) { hintBtn.remove(); hintBtn = null; }
+    currentSelection = '';
+  }
+
+  function showHint(text, x, y) {
+    removeHint();
+    hintBtn = document.createElement('div');
+    hintBtn.id = 'shallott-autodetect-btn';
+    hintBtn.style.cssText = 'position:fixed;z-index:999999998;background:#ffaa33;color:#000;'
+      + 'padding:5px 12px;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;'
+      + 'font-family:"Segoe UI",sans-serif;box-shadow:0 2px 10px rgba(0,0,0,0.5);';
+    hintBtn.textContent = '🌐 Traduire ?';
+    // Async update with user's target language
+    // Friendly language names for the button
+    var langNames = { French: 'Français', English: 'Anglais', Spanish: 'Espagnol',
+      German: 'Allemand', Italian: 'Italien', Portuguese: 'Portugais',
+      Chinese: 'Chinois', Japanese: 'Japonais', Russian: 'Russe' };
+    chrome.storage.local.get(['targetLang'], function(res) {
+      if (hintBtn) {
+        var lang = res.targetLang || 'French';
+        var display = langNames[lang] || lang;
+        hintBtn.textContent = '🌐 Traduire en ' + display + ' ?';
+      }
+    });
+    hintBtn.style.left = Math.min(Math.max(x + 10, 5), window.innerWidth - 210) + 'px';
+    hintBtn.style.top = Math.max(y - 32, 5) + 'px';
+    hintBtn.onclick = function(e) {
+      e.stopPropagation(); e.preventDefault();
+      chrome.runtime.sendMessage({ action: 'auto-detect-translate', text: currentSelection });
+      removeHint();
+    };
+    document.body.appendChild(hintBtn);
+    setTimeout(function() {
+      if (hintBtn && hintBtn.parentNode) { hintBtn.remove(); hintBtn = null; }
+    }, 6000);
+  }
+
+  function isForeignLanguage(txt) {
+    if (!txt || txt.length < 3) return false;
+    // Accept any text with at least 2 words (lower threshold = more responsive)
+    var words = txt.match(/\b\w{2,15}\b/g);
+    return words && words.length >= 2;
+  }
+
+  document.addEventListener('mouseup', function(e) {
+    setTimeout(function() {
+      var sel = window.getSelection();
+      var txt = (sel || '').toString().trim();
+      if (txt && txt.length >= 3 && txt !== currentSelection) {
+        currentSelection = txt;
+        if (isForeignLanguage(txt)) {
+          try {
+            var rect = sel.getRangeAt(0).getBoundingClientRect();
+            // Use viewport coordinates (getBoundingClientRect is viewport-relative)
+            showHint(txt, rect.left, rect.bottom);
+          } catch(err) { /* selection in input, skip */ }
+        } else {
+          removeHint();
+        }
+      } else if (!txt) {
+        setTimeout(removeHint, 500); // delayed cleanup
+      }
+    }, 350); // slightly longer delay to avoid competing with DeepL
+  });
+
+  document.addEventListener('click', function(e) {
+    if (hintBtn && !hintBtn.contains(e.target)) {
+      removeHint();
+    }
+  });
+}
 
 // Content-script runner for injecting inline floating translation widget
 function displayInlineTranslationBubble(text) {
@@ -390,9 +919,13 @@ function displayInlineTranslationBubble(text) {
 
   bubble.style.top = `${Math.min(topPos, window.innerHeight - 200)}px`;
   bubble.style.left = `${Math.min(leftPos, window.innerWidth - 360)}px`;
+  bubble.style.boxSizing = "border-box";
   bubble.style.width = "340px";
   bubble.style.height = "auto";
+  bubble.style.minWidth = "260px";
   bubble.style.minHeight = "120px";
+  bubble.style.maxWidth = "calc(100vw - 20px)";
+  bubble.style.maxHeight = "calc(100vh - 20px)";
   bubble.style.backgroundColor = "#181c24";
   bubble.style.color = "#c9ceef";
   bubble.style.border = "1px solid #ffaa33";
@@ -403,9 +936,13 @@ function displayInlineTranslationBubble(text) {
   bubble.style.fontFamily = "'Segoe UI', system-ui, sans-serif";
   bubble.style.fontSize = "12px";
 
-  // Make bubble resizable with CSS property
+  // Make bubble resizable with CSS property; flex layout lets the
+  // translation result grow to fill the extra space on resize while
+  // keeping the header and action buttons pinned and visible.
   bubble.style.resize = "both";
-  bubble.style.overflow = "auto";
+  bubble.style.overflow = "hidden";
+  bubble.style.display = "flex";
+  bubble.style.flexDirection = "column";
 
   // Create header container
   const header = document.createElement("div");
@@ -455,7 +992,9 @@ function displayInlineTranslationBubble(text) {
   resultBox.id = "shallott-bubble-result";
   resultBox.style.lineHeight = "1.5";
   resultBox.style.color = "#a6e3a1";
-  resultBox.style.maxHeight = "180px";
+  resultBox.style.flex = "1";
+  resultBox.style.minHeight = "0";
+  resultBox.style.minWidth = "0";
   resultBox.style.overflowY = "auto";
   resultBox.style.wordBreak = "break-word";
   resultBox.style.whiteSpace = "pre-wrap";
