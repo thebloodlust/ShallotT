@@ -252,6 +252,14 @@
       overflow-y: auto;
       word-wrap: break-word;
     }
+
+    /* Quick-lang mapping list: own bounded scroll so many letters don't push the
+       Save/Test buttons out of reach. */
+    #quickLangList {
+      max-height: 132px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
     
     .form-group {
       margin-bottom: 8px;
