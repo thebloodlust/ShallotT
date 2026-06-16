@@ -885,13 +885,14 @@ function injectAutoDetectListener() {
       });
     };
 
-    // Use chrome.runtime.sendMessage WITHOUT callback → returns Promise in MV3/Firefox
-    chrome.runtime.sendMessage({ action: 'secure-translate', text: text }).then(function(rsp) {
-      if (rsp && rsp.success) {
+    // Firefox: use browser.runtime.sendMessage (always Promise-based)
+    var api = (typeof browser !== 'undefined') ? browser.runtime : chrome.runtime;
+    api.sendMessage({ action: 'secure-translate', text: text }).then(function(rsp) {
+      if (rsp && rsp.success && rsp.translation) {
         res.textContent = rsp.translation;
       } else {
         res.style.color = '#f38ba8';
-        res.textContent = 'Err: ' + JSON.stringify(rsp).substring(0, 100);
+        res.textContent = 'Err: bad response';
       }
     }).catch(function(err) {
       res.style.color = '#f38ba8';
