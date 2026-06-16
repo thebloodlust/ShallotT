@@ -594,6 +594,7 @@ class ShallotTApp(QMainWindow):
     translation_failed = pyqtSignal(str)
     trigger_translate_shortcut = pyqtSignal()
     trigger_ocr_shortcut = pyqtSignal()
+    trigger_quicklang_shortcut = pyqtSignal(str)
     connection_checked = pyqtSignal(bool, list)
     
     def __init__(self):
@@ -653,6 +654,7 @@ class ShallotTApp(QMainWindow):
         self.translation_failed.connect(self.on_translation_error)
         self.trigger_translate_shortcut.connect(self.handle_global_translate_shortcut)
         self.trigger_ocr_shortcut.connect(self.handle_global_ocr_shortcut)
+        self.trigger_quicklang_shortcut.connect(self.handle_global_quicklang_shortcut)
         self.connection_checked.connect(self.on_connection_checked)
         
         # Keep loading models in background
@@ -1284,7 +1286,25 @@ class ShallotTApp(QMainWindow):
         self.shortcut_ocr_input.setPlaceholderText("e.g. ctrl+f8 or ctrl+alt+o")
         ocr_sh_layout.addWidget(self.shortcut_ocr_input)
         sg_layout.addLayout(ocr_sh_layout)
-        
+
+        # Quick-lang shortcut (this combo, then a letter → translate to that language)
+        ql_sh_layout = QHBoxLayout()
+        ql_sh_layout.addWidget(QLabel("Quick-Lang Shortcut (puis une lettre) :"))
+        self.shortcut_quicklang_input = QLineEdit(self.config.get("shortcut_quicklang", "ctrl+f9"))
+        self.shortcut_quicklang_input.setPlaceholderText("e.g. ctrl+f9")
+        ql_sh_layout.addWidget(self.shortcut_quicklang_input)
+        sg_layout.addLayout(ql_sh_layout)
+
+        # Dynamic letter → language mapping list
+        sg_layout.addWidget(QLabel("<b>Mapping Lettre → Langue</b> (raccourci ci-dessus, puis tapez la lettre) :"))
+        self.quicklang_rows = []
+        self.quicklang_list_layout = QVBoxLayout()
+        sg_layout.addLayout(self.quicklang_list_layout)
+        add_ql_btn = QPushButton("+ Ajouter une lettre")
+        add_ql_btn.clicked.connect(lambda: self._add_quicklang_row("", "English"))
+        sg_layout.addWidget(add_ql_btn)
+        self._load_quicklang_rows(self.config.get("quick_lang_map", ""))
+
         # OCR Engine selection
         ocr_eng_layout = QHBoxLayout()
         ocr_eng_layout.addWidget(QLabel("OCR Engine (Moteur de reconnaissance) :"))
@@ -1634,7 +1654,10 @@ class ShallotTApp(QMainWindow):
         # Smart target language auto-swap if source text matches target language
         # ONLY swap them if the source language box is set to "Auto Detection"
         # and the user hasn't explicitly set the same language. This prevents the combobox snapping bugs.
-        if src_lang == "Auto Detection":
+        # The quick-lang shortcut sets _force_target_once to honour the chosen language exactly.
+        force_target = getattr(self, "_force_target_once", False)
+        self._force_target_once = False
+        if src_lang == "Auto Detection" and not force_target:
             detected_lang = self.detect_text_language(text)
             if detected_lang == "English" and target_lang == "English":
                 self.target_lang_box.blockSignals(True)
@@ -1786,6 +1809,8 @@ class ShallotTApp(QMainWindow):
         # Save custom shortcuts
         self.config["shortcut_translate"] = self.shortcut_translate_input.text().strip().lower()
         self.config["shortcut_ocr"] = self.shortcut_ocr_input.text().strip().lower()
+        self.config["shortcut_quicklang"] = self.shortcut_quicklang_input.text().strip().lower()
+        self.config["quick_lang_map"] = self._serialize_quicklang_rows()
         self.config["ocr_engine"] = "powertoys" if "powertoys" in self.ocr_engine_combo.currentText().lower() else "tesseract"
         
         # Save max characters limit
@@ -2061,6 +2086,82 @@ class ShallotTApp(QMainWindow):
                 self.translate_text()
         except Exception as e:
             self.statusBar().showMessage(f"Clipboard read error: {e}", 3000)
+
+    def _add_quicklang_row(self, letter="", lang="English"):
+        """Add one editable [letter → language] row to the quick-lang panel."""
+        row_widget = QWidget()
+        row = QHBoxLayout(row_widget)
+        row.setContentsMargins(0, 0, 0, 0)
+
+        letter_edit = QLineEdit((letter or "").upper())
+        letter_edit.setMaxLength(1)
+        letter_edit.setFixedWidth(40)
+        letter_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        lang_combo = QComboBox()
+        lang_combo.addItems(LANGUAGES)
+        if lang in LANGUAGES:
+            lang_combo.setCurrentText(lang)
+
+        remove_btn = QPushButton("✕")
+        remove_btn.setFixedWidth(32)
+        remove_btn.setToolTip("Retirer cette lettre")
+
+        def _remove():
+            self.quicklang_rows = [r for r in self.quicklang_rows if r[0] is not row_widget]
+            row_widget.setParent(None)
+            row_widget.deleteLater()
+        remove_btn.clicked.connect(_remove)
+
+        row.addWidget(letter_edit)
+        row.addWidget(QLabel("→"))
+        row.addWidget(lang_combo)
+        row.addWidget(remove_btn)
+        self.quicklang_list_layout.addWidget(row_widget)
+        self.quicklang_rows.append((row_widget, letter_edit, lang_combo))
+
+    def _load_quicklang_rows(self, raw):
+        """Rebuild rows from the 'E=English, F=French' config string."""
+        for rw, _, _ in getattr(self, "quicklang_rows", []):
+            rw.setParent(None)
+            rw.deleteLater()
+        self.quicklang_rows = []
+        pairs = []
+        for pair in (raw or "").split(","):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                k = k.strip()
+                v = v.strip()
+                if len(k) == 1 and v:
+                    pairs.append((k, v))
+        if not pairs:
+            pairs = [("E", "English"), ("F", "French"), ("S", "Spanish")]
+        for k, v in pairs:
+            self._add_quicklang_row(k, v)
+
+    def _serialize_quicklang_rows(self):
+        """Collect rows back into the 'E=English, F=French' config string."""
+        out = []
+        seen = set()
+        for _, letter_edit, lang_combo in getattr(self, "quicklang_rows", []):
+            k = letter_edit.text().strip().upper()
+            v = lang_combo.currentText()
+            if len(k) == 1 and v and k not in seen:
+                seen.add(k)
+                out.append(f"{k}={v}")
+        return ", ".join(out)
+
+    def handle_global_quicklang_shortcut(self, language):
+        """Quick-lang shortcut: force the target language, then translate the
+        current selection (clipboard) without the EN↔FR auto-swap."""
+        if language in LANGUAGES:
+            self.target_lang_box.blockSignals(True)
+            self.target_lang_box.setCurrentText(language)
+            self.target_lang_box.blockSignals(False)
+        # One-shot: tell translate_text to honour the chosen target exactly.
+        self._force_target_once = True
+        self.statusBar().showMessage(f"Traduction rapide → {language}", 2000)
+        self.handle_global_translate_shortcut()
 
     # ── Audio Translation ────────────────────────────────────────
 

@@ -84,6 +84,7 @@ def main():
         shortcuts = ShortcutManager(
             on_translate_trigger=lambda: window.trigger_translate_shortcut.emit(),
             on_ocr_trigger=lambda: window.trigger_ocr_shortcut.emit(),
+            on_quicklang_trigger=lambda lang: window.trigger_quicklang_shortcut.emit(lang),
             config_provider=lambda: window.config
         )
         shortcuts.start()

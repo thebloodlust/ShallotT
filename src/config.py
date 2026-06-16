@@ -15,6 +15,8 @@ DEFAULT_CONFIG = {
     "max_characters": 10000, # Limite par défaut à 10 000 lettres pour optimiser la vitesse de traitement
     "shortcut_translate": "ctrl+c+c",
     "shortcut_ocr": "ctrl+f8",
+    "shortcut_quicklang": "ctrl+f9", # Quick per-language translate: this combo, then a letter
+    "quick_lang_map": "E=English, F=French, S=Spanish, G=German, I=Italian, P=Portuguese, C=Chinese, J=Japanese, R=Russian", # Letter→language map for the quick-lang shortcut
     "ocr_engine": "tesseract", # "tesseract" ou "powertoys" (uniquement sous Windows)
     "audio_source": "microphone", # "microphone" ou "loopback" (WASAPI system audio)
     "audio_model": "tiny.en", # Modèle Whisper: tiny, tiny.en, small, medium

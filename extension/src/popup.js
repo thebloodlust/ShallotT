@@ -101,6 +101,99 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- Quick-lang mapping (Ctrl+F9 + letter) dynamic list ---
+  // value = internal language name (sent as targetLang); label = French display.
+  const QUICK_LANGS = [
+    ['French', 'Français'], ['English', 'Anglais'], ['Spanish', 'Espagnol'],
+    ['German', 'Allemand'], ['Italian', 'Italien'], ['Portuguese', 'Portugais'],
+    ['Chinese', 'Chinois'], ['Japanese', 'Japonais'], ['Russian', 'Russe']
+  ];
+  const quickLangList = document.getElementById('quickLangList');
+  const addQuickLangBtn = document.getElementById('addQuickLang');
+
+  function addQuickLangRow(letter, lang) {
+    const row = document.createElement('div');
+    row.className = 'ql-row';
+    row.style.cssText = 'display:flex; gap:4px; align-items:center; margin-bottom:4px;';
+
+    const letterInput = document.createElement('input');
+    letterInput.type = 'text';
+    letterInput.maxLength = 1;
+    letterInput.className = 'ql-letter';
+    letterInput.value = (letter || '').toUpperCase();
+    letterInput.style.cssText = 'width:34px; min-width:34px; text-align:center; text-transform:uppercase;';
+    letterInput.addEventListener('input', () => {
+      letterInput.value = letterInput.value.replace(/[^a-zA-Z]/g, '').toUpperCase();
+    });
+
+    const arrow = document.createElement('span');
+    arrow.textContent = '→';
+    arrow.style.color = 'var(--text-muted)';
+
+    const langSelect = document.createElement('select');
+    langSelect.className = 'ql-lang';
+    langSelect.style.flex = '1';
+    QUICK_LANGS.forEach(([val, label]) => {
+      const opt = document.createElement('option');
+      opt.value = val; opt.textContent = label;
+      if (val === lang) opt.selected = true;
+      langSelect.appendChild(opt);
+    });
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'secondary';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Retirer cette lettre';
+    removeBtn.style.cssText = 'padding:2px 8px; font-size:11px;';
+    removeBtn.addEventListener('click', () => row.remove());
+
+    row.appendChild(letterInput);
+    row.appendChild(arrow);
+    row.appendChild(langSelect);
+    row.appendChild(removeBtn);
+    quickLangList.appendChild(row);
+  }
+
+  // Build rows from the stored "E=English, F=French" string.
+  function renderQuickLangRows(rawMap) {
+    quickLangList.textContent = '';
+    const pairs = [];
+    (rawMap || '').split(',').forEach((pair) => {
+      const idx = pair.indexOf('=');
+      if (idx > 0) {
+        const key = pair.slice(0, idx).trim();
+        const lang = pair.slice(idx + 1).trim();
+        if (key.length === 1 && lang) pairs.push([key, lang]);
+      }
+    });
+    if (pairs.length === 0) {
+      // Sensible defaults so the panel isn't empty on first use.
+      [['E', 'English'], ['F', 'French'], ['S', 'Spanish']].forEach(([k, l]) => addQuickLangRow(k, l));
+    } else {
+      pairs.forEach(([k, l]) => addQuickLangRow(k, l));
+    }
+  }
+
+  // Serialize the rows back to the "E=English, F=French" string.
+  function serializeQuickLangRows() {
+    const out = [];
+    const seen = new Set();
+    quickLangList.querySelectorAll('.ql-row').forEach((row) => {
+      const key = row.querySelector('.ql-letter').value.trim().toUpperCase();
+      const lang = row.querySelector('.ql-lang').value;
+      if (key.length === 1 && lang && !seen.has(key)) {
+        seen.add(key);
+        out.push(`${key}=${lang}`);
+      }
+    });
+    return out.join(', ');
+  }
+
+  if (addQuickLangBtn) {
+    addQuickLangBtn.addEventListener('click', () => addQuickLangRow('', 'English'));
+  }
+
   // Load saved settings & selections
   chrome.storage.local.get([
     'ollamaUrl', 'ollamaModel', 'ollamaApiKey', 'srcLang', 'targetLang', 'lastQueryText', 'customContextMenuLang', 'maxCharacters', 'extFontSize', 'extFontFamily', 'extDyslexicMode', 'quickLangMap'
@@ -124,9 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (result.extDyslexicMode !== undefined) {
       document.getElementById('extDyslexicMode').checked = result.extDyslexicMode;
     }
-    if (result.quickLangMap) {
-      document.getElementById('quickLangMap').value = result.quickLangMap;
-    }
+    renderQuickLangRows(result.quickLangMap);
 
     // Apply font settings load trigger
     applyPopupFontPreferences(result);
@@ -181,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
       extFontSize: fontSizeVal,
       extFontFamily: fontFamilyVal,
       extDyslexicMode: dyslexicVal,
-      quickLangMap: document.getElementById('quickLangMap').value.trim()
+      quickLangMap: serializeQuickLangRows()
     }, () => {
       // Re-apply immediately in popup
       applyPopupFontPreferences({

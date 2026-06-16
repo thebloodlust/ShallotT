@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "ShallotT - Traducteur IA Local",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "browser_specific_settings": {
     "gecko": {
       "id": "{28ca131e-ab92-4713-ab9c-efffcfd19825}",

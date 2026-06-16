@@ -2,14 +2,33 @@ import time
 from pynput import keyboard
 
 class ShortcutManager:
-    def __init__(self, on_translate_trigger, on_ocr_trigger, config_provider=None):
+    def __init__(self, on_translate_trigger, on_ocr_trigger, config_provider=None,
+                 on_quicklang_trigger=None):
         self.on_translate_trigger = on_translate_trigger
         self.on_ocr_trigger = on_ocr_trigger
+        self.on_quicklang_trigger = on_quicklang_trigger
         self.config_provider = config_provider
-        
+
         self.last_c_press_time = 0
         self.listener = None
         self.pressed_keys = set()
+        # When the quick-lang combo is pressed we "arm" for a few seconds,
+        # waiting for the next letter to pick the target language.
+        self.quicklang_armed_until = 0
+
+    @staticmethod
+    def parse_quick_lang_map(raw):
+        """Parse 'E=English, F=French' into {'e':'English','f':'French'}."""
+        mapping = {}
+        if raw:
+            for pair in str(raw).split(","):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    k = k.strip().lower()
+                    v = v.strip()
+                    if len(k) == 1 and v:
+                        mapping[k] = v
+        return mapping
 
     def start(self):
         self.listener = keyboard.Listener(
@@ -59,7 +78,27 @@ class ShortcutManager:
             config = self.config_provider() if self.config_provider else {}
             trans_shortcut = config.get("shortcut_translate", "ctrl+c+c").lower().strip()
             ocr_shortcut = config.get("shortcut_ocr", "ctrl+f8").lower().strip()
-            
+
+            # 0. Quick-lang: if armed, the next single letter picks the language.
+            if self.on_quicklang_trigger and time.time() < self.quicklang_armed_until:
+                if name and len(name) == 1 and name.isalpha():
+                    mapping = self.parse_quick_lang_map(config.get("quick_lang_map", ""))
+                    lang = mapping.get(name.lower())
+                    self.quicklang_armed_until = 0
+                    self.pressed_keys.clear()  # avoid stuck keys / double-trigger
+                    if lang:
+                        self.on_quicklang_trigger(lang)
+                    return
+
+            # 0b. Detect the quick-lang combo to arm letter capture.
+            if self.on_quicklang_trigger:
+                ql_shortcut = config.get("shortcut_quicklang", "ctrl+f9").lower().strip()
+                ql_keys = set(ql_shortcut.split("+")) if ql_shortcut else set()
+                if ql_keys and ql_keys.issubset(self.pressed_keys):
+                    self.quicklang_armed_until = time.time() + 5.0
+                    self.pressed_keys.clear()
+                    return
+
             # 1. Translate action trigger checks
             if trans_shortcut == "ctrl+c+c":
                 if "ctrl" in self.pressed_keys and name == "c":

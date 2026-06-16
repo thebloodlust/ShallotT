@@ -356,9 +356,10 @@
         • Traduction rapide par langue : <strong style="color: var(--accent-hover);">Ctrl+F9</strong> puis une <strong style="color: var(--accent-hover);">lettre</strong> (E=English, F=Français…)
       </p>
       <div class="form-group" style="margin-bottom: 4px;">
-        <label for="quickLangMap" style="font-size: 10px;">Mapping Lettre → Langue (modifiable) :</label>
-        <input type="text" id="quickLangMap" value="" placeholder="E=English, F=French, S=Spanish...">
-        <span style="font-size: 8.5px; color: var(--text-muted);">Format : Lettre=Langue, séparé par des virgules. Ex : E=English, F=Français, S=Español</span>
+        <label style="font-size: 10px;">Mapping Lettre → Langue (Ctrl+F9 puis la lettre) :</label>
+        <div id="quickLangList"></div>
+        <button type="button" class="secondary" id="addQuickLang" style="width: 100%; padding: 3px; font-size: 10px; margin-top: 4px;">+ Ajouter une lettre</button>
+        <span style="font-size: 8.5px; color: var(--text-muted); display: block; margin-top: 2px;">Tape une lettre, choisis la langue. Une ligne vide est ignorée.</span>
       </div>
       <button type="button" class="secondary" id="openShortcutsBtn" style="width: 100%; padding: 4px; font-size: 10px; margin-bottom: 4px; cursor: pointer;">🎯 Gérer les Raccourcis de l’Extension</button>
       <p style="margin: 0; font-size: 9.5px; color: var(--text-muted); line-height: 1.3;">
