@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "ShallotT - Traducteur IA Local",
-  "version": "1.0.9",
+  "version": "1.1.3",
   "browser_specific_settings": {
     "gecko": {
       "id": "{28ca131e-ab92-4713-ab9c-efffcfd19825}",
@@ -39,6 +39,14 @@
     "scripts": ["src/background.js"],
     "persistent": true
   },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["src/autodetect.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
   "commands": {
     "_execute_browser_action": {
       "suggested_key": {

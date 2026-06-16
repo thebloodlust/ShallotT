@@ -569,50 +569,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Inject auto-detect listener on existing tabs and new navigations
-function injectAutoDetectOnAllTabs() {
-  chrome.tabs.query({}, (tabs) => {
-    tabs.forEach(tab => {
-      if (tab.id && tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
-        if (chrome.scripting) {
-          chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: injectAutoDetectListener
-          }).catch(() => {});
-        } else {
-          // MV2 fallback
-          chrome.tabs.executeScript(tab.id, {
-            code: `(${injectAutoDetectListener.toString()})()`
-          }, () => { if (chrome.runtime.lastError) {} });
-        }
-      }
-    });
-  });
-}
-
-// Run on startup, install, and also immediately when background script loads
-chrome.runtime.onStartup.addListener(injectAutoDetectOnAllTabs);
-chrome.runtime.onInstalled.addListener(injectAutoDetectOnAllTabs);
-// Also inject now for any already-open tabs (background just loaded = extension reloaded)
-setTimeout(injectAutoDetectOnAllTabs, 2000);
-
-// Listen for new tab navigations to inject listener
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url &&
-      (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
-    if (chrome.scripting) {
-      chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        func: injectAutoDetectListener
-      }).catch(() => {});
-    } else {
-      // MV2 fallback
-      chrome.tabs.executeScript(tabId, {
-        code: `(${injectAutoDetectListener.toString()})()`
-      }, () => { if (chrome.runtime.lastError) {} });
-    }
-  }
-});
+// NOTE: the auto-detect "Traduire?" listener is now injected declaratively via
+// content_scripts (src/autodetect.js) in the manifest. The old programmatic
+// injection was removed (it duplicated the declarative injection).
 
 // Listener for keyboard command shortcuts
 chrome.commands.onCommand.addListener((command) => {
@@ -831,101 +790,6 @@ function injectQuickLangListener() {
   }, 8000);
 }
 
-// Auto-detect language on text selection — shows a small floating "Translate?" button
-// when the user selects text that appears to be in a foreign language.
-function injectAutoDetectListener() {
-  if (window.__shallottAutoDetectActive) return;
-  window.__shallottAutoDetectActive = true;
-
-  var hintBtn = null;
-  var currentSelection = '';
-
-  // NOTE: the old in-page createInlineBubble() was removed. The auto-detect
-  // button now sends an 'auto-detect-translate' message to the background,
-  // which injects the shared displayInlineTranslationBubble() — the exact same
-  // draggable, working bubble as the right-click context menu.
-  function removeHint() {
-    if (hintBtn) { hintBtn.remove(); hintBtn = null; }
-    currentSelection = '';
-  }
-
-  function showHint(text, x, y) {
-    removeHint();
-    hintBtn = document.createElement('div');
-    hintBtn.id = 'shallott-autodetect-btn';
-    hintBtn.style.cssText = 'position:fixed;z-index:999999998;'
-      + 'background:rgba(24,28,36,0.92);color:#ffaa33;'
-      + 'border:1px solid #ffaa33;'
-      + 'padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;'
-      + 'font-family:"Segoe UI",system-ui,sans-serif;'
-      + 'box-shadow:0 2px 8px rgba(0,0,0,0.4);'
-      + 'backdrop-filter:blur(4px);user-select:none;white-space:nowrap;'
-      + 'transition:opacity 0.15s;';
-    hintBtn.textContent = '🧅 Traduire ?';
-    // Async update with user's target language
-    // Friendly language names for the button
-    var langNames = { French: 'Français', English: 'Anglais', Spanish: 'Espagnol',
-      German: 'Allemand', Italian: 'Italien', Portuguese: 'Portugais',
-      Chinese: 'Chinois', Japanese: 'Japonais', Russian: 'Russe' };
-    chrome.storage.local.get(['targetLang'], function(res) {
-      if (hintBtn) {
-        var lang = res.targetLang || 'French';
-        var display = langNames[lang] || lang;
-        hintBtn.textContent = '🧅 Traduire en ' + display + ' ?';
-      }
-    });
-    hintBtn.style.left = Math.min(Math.max(x + 10, 5), window.innerWidth - 210) + 'px';
-    hintBtn.style.top = Math.max(y - 32, 5) + 'px';
-    hintBtn.onclick = function(e) {
-      e.stopPropagation(); e.preventDefault();
-      var text = currentSelection;
-      removeHint();
-      // Route through the background so it injects displayInlineTranslationBubble —
-      // the EXACT same draggable, working bubble used by the right-click menu.
-      var rt = (typeof browser !== 'undefined' && browser.runtime) ? browser.runtime : chrome.runtime;
-      rt.sendMessage({ action: 'auto-detect-translate', text: text });
-    };
-    document.body.appendChild(hintBtn);
-    setTimeout(function() {
-      if (hintBtn && hintBtn.parentNode) { hintBtn.remove(); hintBtn = null; }
-    }, 6000);
-  }
-
-  function isForeignLanguage(txt) {
-    if (!txt || txt.length < 3) return false;
-    // Accept any text with at least 2 words (lower threshold = more responsive)
-    var words = txt.match(/\b\w{2,15}\b/g);
-    return words && words.length >= 2;
-  }
-
-  document.addEventListener('mouseup', function(e) {
-    setTimeout(function() {
-      var sel = window.getSelection();
-      var txt = (sel || '').toString().trim();
-      if (txt && txt.length >= 3 && txt !== currentSelection) {
-        currentSelection = txt;
-        if (isForeignLanguage(txt)) {
-          try {
-            var rect = sel.getRangeAt(0).getBoundingClientRect();
-            // Use viewport coordinates (getBoundingClientRect is viewport-relative)
-            showHint(txt, rect.left, rect.bottom);
-          } catch(err) { /* selection in input, skip */ }
-        } else {
-          removeHint();
-        }
-      } else if (!txt) {
-        setTimeout(removeHint, 500); // delayed cleanup
-      }
-    }, 350); // slightly longer delay to avoid competing with DeepL
-  });
-
-  document.addEventListener('click', function(e) {
-    if (hintBtn && !hintBtn.contains(e.target)) {
-      removeHint();
-    }
-  });
-}
-
 // Content-script runner for injecting inline floating translation widget
 function displayInlineTranslationBubble(text) {
   // To avoid duplicate bubbles
@@ -938,24 +802,25 @@ function displayInlineTranslationBubble(text) {
   bubble.id = existingId;
   bubble.style.position = "fixed";
   
-  // Try to place around selection coordinates. The selection may be gone
-  // (e.g. clicking the auto-detect button clears it), so fall back to a
-  // sensible fixed position instead of throwing on getRangeAt(0).
-  let topPos = window.scrollY + 90;
-  let leftPos = window.scrollX + 90;
+  // Place around the selection. The bubble is position:fixed, so coordinates
+  // are VIEWPORT-relative — never add scrollX/scrollY (that pushes it off-screen
+  // on scrolled pages). getBoundingClientRect() is already viewport-relative.
+  // Fall back to a fixed viewport position if the selection is gone.
+  let topPos = 90;
+  let leftPos = 90;
   try {
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
       const geom = sel.getRangeAt(0).getBoundingClientRect();
       if (geom && (geom.width || geom.height || geom.top)) {
-        topPos = window.scrollY + geom.bottom + 8;
-        leftPos = window.scrollX + geom.left;
+        topPos = geom.bottom + 8;
+        leftPos = geom.left;
       }
     }
   } catch (e) { /* keep fallback position */ }
 
-  bubble.style.top = `${Math.min(topPos, window.scrollY + window.innerHeight - 200)}px`;
-  bubble.style.left = `${Math.min(leftPos, window.scrollX + window.innerWidth - 360)}px`;
+  bubble.style.top = `${Math.max(8, Math.min(topPos, window.innerHeight - 200))}px`;
+  bubble.style.left = `${Math.max(8, Math.min(leftPos, window.innerWidth - 360))}px`;
   bubble.style.boxSizing = "border-box";
   bubble.style.width = "340px";
   bubble.style.height = "auto";
