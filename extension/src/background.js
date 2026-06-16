@@ -885,18 +885,20 @@ function injectAutoDetectListener() {
       });
     };
 
-    // Firefox: use browser.runtime.sendMessage (always Promise-based)
-    var api = (typeof browser !== 'undefined') ? browser.runtime : chrome.runtime;
-    api.sendMessage({ action: 'secure-translate', text: text }).then(function(rsp) {
+    // Use callback form (same as right-click bubble) — avoids Firefox MV2
+    // Promise-resolution issues where .then() receives undefined.
+    chrome.runtime.sendMessage({ action: 'secure-translate', text: text }, function(rsp) {
+      if (chrome.runtime.lastError) {
+        res.style.color = '#f38ba8';
+        res.textContent = 'Err: ' + chrome.runtime.lastError.message;
+        return;
+      }
       if (rsp && rsp.success && rsp.translation) {
         res.textContent = rsp.translation;
       } else {
         res.style.color = '#f38ba8';
-        res.textContent = 'Err: bad response';
+        res.textContent = 'Err: ' + (rsp ? (rsp.error || 'bad response') : 'no response');
       }
-    }).catch(function(err) {
-      res.style.color = '#f38ba8';
-      res.textContent = 'Err: ' + (err ? err.message : 'unknown');
     });
 
     // Close on outside click
@@ -916,10 +918,15 @@ function injectAutoDetectListener() {
     removeHint();
     hintBtn = document.createElement('div');
     hintBtn.id = 'shallott-autodetect-btn';
-    hintBtn.style.cssText = 'position:fixed;z-index:999999998;background:#ffaa33;color:#000;'
-      + 'padding:5px 12px;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;'
-      + 'font-family:"Segoe UI",sans-serif;box-shadow:0 2px 10px rgba(0,0,0,0.5);';
-    hintBtn.textContent = '🌐 Traduire ?';
+    hintBtn.style.cssText = 'position:fixed;z-index:999999998;'
+      + 'background:rgba(24,28,36,0.92);color:#ffaa33;'
+      + 'border:1px solid #ffaa33;'
+      + 'padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;'
+      + 'font-family:"Segoe UI",system-ui,sans-serif;'
+      + 'box-shadow:0 2px 8px rgba(0,0,0,0.4);'
+      + 'backdrop-filter:blur(4px);user-select:none;white-space:nowrap;'
+      + 'transition:opacity 0.15s;';
+    hintBtn.textContent = '🧅 Traduire ?';
     // Async update with user's target language
     // Friendly language names for the button
     var langNames = { French: 'Français', English: 'Anglais', Spanish: 'Espagnol',
