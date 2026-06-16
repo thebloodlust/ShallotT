@@ -80,6 +80,22 @@ bubble.style.left = Math.max(8, Math.min(leftPos, window.innerWidth  - 360)) + '
 ## Rappel AMO
 `browser_specific_settings.gecko.id` doit rester `{28ca131e-ab92-4713-ab9c-efffcfd19825}`.
 
-## Fichiers livrés (v1.1.3)
-- `shallott_-_traducteur_ia_local-1.1.3.zip` (Firefox MV2)
-- `shallott_-_chrome_mv3-1.1.3.zip` (Chrome MV3)
+## Fichiers livrés (v1.1.4)
+- `shallott_-_traducteur_ia_local-1.1.4.zip` (Firefox MV2)
+- `shallott_-_chrome_mv3-1.1.4.zip` (Chrome MV3)
+
+## Validation AMO (v1.1.4)
+
+Deux signalements de la validation Firefox traités :
+
+1. **`content_security_policy` autorise l'exécution de code distant** — le CSP
+   contenait `script-src 'self' https://cdn.jsdelivr.net`. Le CDN n'était plus
+   utilisé (tesseract.js est embarqué localement dans `src/lib/`). → CSP réduit à
+   `script-src 'self'; object-src 'self'`.
+
+2. **« The Function constructor is eval »** — provenait du polyfill regenerator dans
+   la lib tierce `tesseract.min.js` : `Function("r","regeneratorRuntime = r")(o)`.
+   C'est la branche de repli d'un ternaire dont la 1ère branche
+   (`globalThis.regeneratorRuntime=o`) est toujours prise dans un navigateur moderne →
+   code mort. Remplacé par `(typeof self!=="undefined"?self:this).regeneratorRuntime=o`
+   (équivalent, sans constructeur Function). Appliqué aux deux copies (FF + Chrome).
