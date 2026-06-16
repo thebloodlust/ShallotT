@@ -548,10 +548,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const tabId = (sender && sender.tab) ? sender.tab.id : null;
     if (!tabId) return;
     chrome.storage.local.set({ lastQueryText: text }, () => {
-      // Same injection as right-click: chrome.tabs.executeScript with stringified function
-      chrome.tabs.executeScript(tabId, {
-        code: `(${displayInlineTranslationBubble.toString()})(${JSON.stringify(text)})`
-      }, () => { if (chrome.runtime.lastError) { /* ignore */ } });
+      // MV3: must use chrome.scripting (chrome.tabs.executeScript does not exist
+      // in a service worker). Injects the same draggable bubble as right-click.
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: displayInlineTranslationBubble,
+        args: [text]
+      }).catch(() => {});
     });
   }
 });
@@ -827,86 +830,10 @@ function injectAutoDetectListener() {
   var hintBtn = null;
   var currentSelection = '';
 
-  // Creates the translation bubble inline — NO background injection needed
-  function createInlineBubble(text) {
-    var old = document.getElementById('shallott-bubble-widget');
-    if (old) old.remove();
-
-    var b = document.createElement('div');
-    b.id = 'shallott-bubble-widget';
-    b.style.cssText = 'position:fixed;z-index:999999999;background:#181c24;color:#c9ceef;'
-      + 'border:1px solid #ffaa33;border-radius:8px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,0.5);'
-      + 'width:340px;min-height:120px;font-family:"Segoe UI",sans-serif;font-size:12px;'
-      + 'display:flex;flex-direction:column;resize:both;overflow:hidden;';
-
-    // Position near selection
-    var sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      var r = sel.getRangeAt(0).getBoundingClientRect();
-      b.style.top = Math.min(r.bottom + 8 + window.scrollY, window.innerHeight - 200) + 'px';
-      b.style.left = Math.min(r.left + window.scrollX, window.innerWidth - 360) + 'px';
-    } else {
-      b.style.top = '80px'; b.style.left = '80px';
-    }
-
-    // Header
-    var hdr = document.createElement('div');
-    hdr.style.cssText = 'display:flex;justify-content:space-between;border-bottom:1px solid #2e3440;padding-bottom:6px;margin-bottom:8px;cursor:move;';
-    hdr.innerHTML = '<span style="color:#ffaa33;font-weight:bold;">ShallotT 🧅</span><span class="s-close" style="cursor:pointer;padding:2px 6px;">✕</span>';
-    b.appendChild(hdr);
-
-    // Source preview
-    var src = document.createElement('div');
-    src.style.cssText = 'color:#707a8a;font-style:italic;margin-bottom:5px;max-height:40px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-    src.textContent = '"' + (text.length > 100 ? text.substring(0,100)+'…' : text) + '"';
-    b.appendChild(src);
-
-    // Result area
-    var res = document.createElement('div');
-    res.style.cssText = 'color:#a6e3a1;line-height:1.5;max-height:180px;overflow-y:auto;word-break:break-word;white-space:pre-wrap;flex:1;min-height:0;';
-    res.textContent = 'Traduction en cours...';
-    b.appendChild(res);
-
-    // Actions bar
-    var act = document.createElement('div');
-    act.style.cssText = 'display:flex;justify-content:space-between;margin-top:8px;border-top:1px solid #2e3440;padding-top:6px;';
-    act.innerHTML = '<button class="s-copy" style="background:#585b70;color:#cdd6f4;border:none;border-radius:3px;padding:3px 8px;font-size:10px;cursor:pointer;">📋 Copier</button><span style="font-size:9px;color:#707a8a;">Gemma API</span>';
-    b.appendChild(act);
-
-    // Add to page NOW so querySelector works
-    document.body.appendChild(b);
-
-    // Wire up events via querySelector on the bubble
-    b.querySelector('.s-close').onclick = function() { b.remove(); };
-    b.querySelector('.s-copy').onclick = function() {
-      navigator.clipboard.writeText(res.textContent).then(function() {
-        b.querySelector('.s-copy').textContent = '✓ Copié !';
-        setTimeout(function() { b.querySelector('.s-copy').textContent = '📋 Copier'; }, 2000);
-      });
-    };
-
-    // Firefox: use browser.runtime.sendMessage (always Promise-based)
-    var api = (typeof browser !== 'undefined') ? browser.runtime : chrome.runtime;
-    api.sendMessage({ action: 'secure-translate', text: text }).then(function(rsp) {
-      if (rsp && rsp.success && rsp.translation) {
-        res.textContent = rsp.translation;
-      } else {
-        res.style.color = '#f38ba8';
-        res.textContent = 'Err: bad response';
-      }
-    }).catch(function(err) {
-      res.style.color = '#f38ba8';
-      res.textContent = 'Err: ' + (err ? err.message : 'unknown');
-    });
-
-    // Close on outside click
-    setTimeout(function() {
-      document.addEventListener('mousedown', function outer(e) {
-        if (!b.contains(e.target)) { b.remove(); document.removeEventListener('mousedown', outer); }
-      });
-    }, 300);
-  }
-
+  // NOTE: the old in-page createInlineBubble() was removed. The auto-detect
+  // button now sends an 'auto-detect-translate' message to the background,
+  // which injects the shared displayInlineTranslationBubble() — the exact same
+  // draggable, working bubble as the right-click context menu.
   function removeHint() {
     if (hintBtn) { hintBtn.remove(); hintBtn = null; }
     currentSelection = '';
@@ -916,10 +843,15 @@ function injectAutoDetectListener() {
     removeHint();
     hintBtn = document.createElement('div');
     hintBtn.id = 'shallott-autodetect-btn';
-    hintBtn.style.cssText = 'position:fixed;z-index:999999998;background:#ffaa33;color:#000;'
-      + 'padding:5px 12px;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;'
-      + 'font-family:"Segoe UI",sans-serif;box-shadow:0 2px 10px rgba(0,0,0,0.5);';
-    hintBtn.textContent = '🌐 Traduire ?';
+    hintBtn.style.cssText = 'position:fixed;z-index:999999998;'
+      + 'background:rgba(24,28,36,0.92);color:#ffaa33;'
+      + 'border:1px solid #ffaa33;'
+      + 'padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;'
+      + 'font-family:"Segoe UI",system-ui,sans-serif;'
+      + 'box-shadow:0 2px 8px rgba(0,0,0,0.4);'
+      + 'backdrop-filter:blur(4px);user-select:none;white-space:nowrap;'
+      + 'transition:opacity 0.15s;';
+    hintBtn.textContent = '🧅 Traduire ?';
     // Async update with user's target language
     // Friendly language names for the button
     var langNames = { French: 'Français', English: 'Anglais', Spanish: 'Espagnol',
@@ -929,7 +861,7 @@ function injectAutoDetectListener() {
       if (hintBtn) {
         var lang = res.targetLang || 'French';
         var display = langNames[lang] || lang;
-        hintBtn.textContent = '🌐 Traduire en ' + display + ' ?';
+        hintBtn.textContent = '🧅 Traduire en ' + display + ' ?';
       }
     });
     hintBtn.style.left = Math.min(Math.max(x + 10, 5), window.innerWidth - 210) + 'px';
@@ -938,8 +870,9 @@ function injectAutoDetectListener() {
       e.stopPropagation(); e.preventDefault();
       var text = currentSelection;
       removeHint();
-      // Create bubble DIRECTLY — no background round-trip for injection
-      createInlineBubble(text);
+      // Route through the background so it injects displayInlineTranslationBubble —
+      // the EXACT same draggable, working bubble used by the right-click menu.
+      chrome.runtime.sendMessage({ action: 'auto-detect-translate', text: text });
     };
     document.body.appendChild(hintBtn);
     setTimeout(function() {
@@ -994,13 +927,24 @@ function displayInlineTranslationBubble(text) {
   bubble.id = existingId;
   bubble.style.position = "fixed";
   
-  // Try to place around selection coordinates
-  const geom = window.getSelection().getRangeAt(0).getBoundingClientRect();
-  const topPos = window.scrollY + geom.bottom + 8;
-  const leftPos = window.scrollX + geom.left;
+  // Try to place around selection coordinates. The selection may be gone
+  // (e.g. clicking the auto-detect button clears it), so fall back to a
+  // sensible fixed position instead of throwing on getRangeAt(0).
+  let topPos = window.scrollY + 90;
+  let leftPos = window.scrollX + 90;
+  try {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const geom = sel.getRangeAt(0).getBoundingClientRect();
+      if (geom && (geom.width || geom.height || geom.top)) {
+        topPos = window.scrollY + geom.bottom + 8;
+        leftPos = window.scrollX + geom.left;
+      }
+    }
+  } catch (e) { /* keep fallback position */ }
 
-  bubble.style.top = `${Math.min(topPos, window.innerHeight - 200)}px`;
-  bubble.style.left = `${Math.min(leftPos, window.innerWidth - 360)}px`;
+  bubble.style.top = `${Math.min(topPos, window.scrollY + window.innerHeight - 200)}px`;
+  bubble.style.left = `${Math.min(leftPos, window.scrollX + window.innerWidth - 360)}px`;
   bubble.style.boxSizing = "border-box";
   bubble.style.width = "340px";
   bubble.style.height = "auto";
