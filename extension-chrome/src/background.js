@@ -885,17 +885,17 @@ function injectAutoDetectListener() {
       });
     };
 
-    // Use the same secure-translate pipeline as right-click (proven to work)
-    chrome.runtime.sendMessage({ action: 'secure-translate', text: text }, function(rsp) {
-      if (chrome.runtime.lastError) {
-        res.style.color = '#f38ba8';
-        res.textContent = 'Err: ' + chrome.runtime.lastError.message;
-      } else if (rsp && rsp.success) {
+    // Use chrome.runtime.sendMessage WITHOUT callback → returns Promise in MV3/Firefox
+    chrome.runtime.sendMessage({ action: 'secure-translate', text: text }).then(function(rsp) {
+      if (rsp && rsp.success) {
         res.textContent = rsp.translation;
       } else {
         res.style.color = '#f38ba8';
-        res.textContent = 'Err: ' + (rsp ? rsp.error : 'no response');
+        res.textContent = 'Err: ' + JSON.stringify(rsp).substring(0, 100);
       }
+    }).catch(function(err) {
+      res.style.color = '#f38ba8';
+      res.textContent = 'Err: ' + (err ? err.message : 'unknown');
     });
 
     // Close on outside click
