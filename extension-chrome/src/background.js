@@ -541,21 +541,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     });
   } else if (request.action === "auto-detect-translate") {
-    // User clicked the floating "Translate?" button — show the inline translation bubble
+    // User clicked the floating "Translate?" button — show the inline translation
+    // bubble using the SAME injection path as the right-click context menu.
     const text = request.text;
     if (!text) return;
-    // Use the sender's tab ID (reliable, same as context menu)
-    const tabId = (sender && sender.tab) ? sender.tab.id : null;
-    if (!tabId) return;
-    chrome.storage.local.set({ lastQueryText: text }, () => {
-      // MV3: must use chrome.scripting (chrome.tabs.executeScript does not exist
-      // in a service worker). Injects the same draggable bubble as right-click.
-      chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        func: displayInlineTranslationBubble,
-        args: [text]
-      }).catch(() => {});
-    });
+
+    const injectBubble = (tabId) => {
+      if (tabId == null) return;
+      chrome.storage.local.set({ lastQueryText: text }, () => {
+        // MV3: must use chrome.scripting (chrome.tabs.executeScript does not exist
+        // in a service worker). Injects the same draggable bubble as right-click.
+        chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          func: displayInlineTranslationBubble,
+          args: [text]
+        }).catch(() => {});
+      });
+    };
+
+    if (sender && sender.tab && sender.tab.id != null) {
+      injectBubble(sender.tab.id);
+    } else {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        injectBubble(tabs && tabs[0] ? tabs[0].id : null);
+      });
+    }
   }
 });
 
@@ -872,7 +882,8 @@ function injectAutoDetectListener() {
       removeHint();
       // Route through the background so it injects displayInlineTranslationBubble —
       // the EXACT same draggable, working bubble used by the right-click menu.
-      chrome.runtime.sendMessage({ action: 'auto-detect-translate', text: text });
+      var rt = (typeof browser !== 'undefined' && browser.runtime) ? browser.runtime : chrome.runtime;
+      rt.sendMessage({ action: 'auto-detect-translate', text: text });
     };
     document.body.appendChild(hintBtn);
     setTimeout(function() {

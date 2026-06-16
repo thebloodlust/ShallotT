@@ -73,6 +73,42 @@ appelant `createInlineBubble(text)` directement.
    } catch (e) { /* garde la position de repli */ }
    ```
 
+### Correctif additionnel — la bulle ne s'ouvrait plus du tout (régression)
+
+Après le premier passage par le handler, la bulle ne s'ouvrait **plus du tout**.
+Cause : le handler `auto-detect-translate` faisait
+```js
+const tabId = (sender && sender.tab) ? sender.tab.id : null;
+if (!tabId) return;   // <-- sortait silencieusement = aucune bulle
+```
+Or, pour un content script injecté **par programme** (ce qui est le cas de
+`injectAutoDetectListener`, injecté via `executeScript`), `sender.tab` peut être
+`undefined` en Firefox. Le handler abandonnait donc sans rien injecter.
+
+Correction : fallback sur l'onglet actif quand `sender.tab` est absent, et choix
+`chrome.scripting` / `chrome.tabs.executeScript` selon la disponibilité :
+```js
+const injectBubble = (tabId) => {
+  if (tabId == null) return;
+  chrome.storage.local.set({ lastQueryText: text }, () => {
+    if (chrome.scripting) {
+      chrome.scripting.executeScript({ target:{tabId}, func: displayInlineTranslationBubble, args:[text] }).catch(()=>{});
+    } else {
+      chrome.tabs.executeScript(tabId, { code: `(${displayInlineTranslationBubble.toString()})(${JSON.stringify(text)})` }, ()=>{ if (chrome.runtime.lastError) {} });
+    }
+  });
+};
+if (sender && sender.tab && sender.tab.id != null) injectBubble(sender.tab.id);
+else chrome.tabs.query({active:true,currentWindow:true}, (t)=> injectBubble(t && t[0] ? t[0].id : null));
+```
+Le bouton utilise aussi une référence API robuste :
+`var rt = (typeof browser!=='undefined' && browser.runtime) ? browser.runtime : chrome.runtime;`
+
+**Test automatisé** (node, chrome.* mocké) : en injectant le message avec
+`sender.tab` absent, le nouveau code appelle bien `tabs.query` puis `executeScript`
+sur l'onglet actif (tabId 4242) et injecte la fonction bulle (11 Ko). L'ancien code
+serait sorti sans rien faire. PASS sur les 3 cas (sender.tab présent / absent / code injecté).
+
 ### Bug Chrome MV3 supplémentaire corrigé
 
 Le handler `auto-detect-translate` côté Chrome utilisait `chrome.tabs.executeScript`,
